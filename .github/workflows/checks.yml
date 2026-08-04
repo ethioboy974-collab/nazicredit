@@ -1,4 +1,4 @@
-﻿name: Checks
+name: Checks
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 11.9.0
+          standalone: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
