@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-statement-search" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-receive-email" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -185,6 +185,10 @@
               <label>
                 Vendor
                 <select name="vendorId" required></select>
+              </label>
+              <label>
+                Vendor email
+                <input name="vendorEmail" type="email" autocomplete="email" placeholder="vendor@email.com" />
               </label>
               <label>
                 Product
@@ -462,7 +466,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-statement-search"></script>
+    <script src="vendor-tracking.js?v=20260804-receive-email"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

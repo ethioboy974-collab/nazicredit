@@ -97,9 +97,11 @@ function applyAiVendorDraft() {
     form.elements.quantity.value = d.quantity || "";
     if ([...form.elements.unit.options].some((o) => o.value === d.unit)) form.elements.unit.value = d.unit;
     form.elements.note.value = d.notes || "";
+    form.elements.vendorEmail.value = cleanEmail(d.vendorEmail || d.email || "");
     const wanted = String(d.vendorName || "").toLowerCase();
     const option = [...form.elements.vendorId.options].find((o) => o.textContent.toLowerCase().includes(wanted));
     if (option) form.elements.vendorId.value = option.value;
+    if (!form.elements.vendorEmail.value) updateDeliveryVendorEmail();
     showToast("AI draft loaded. Review it before saving.");
   } catch {}
 }
@@ -322,6 +324,7 @@ function bindNavigation() {
   });
 
   elements.statementSearch.addEventListener("input", renderStatement);
+  elements.deliveryForm.elements.vendorId.addEventListener("change", updateDeliveryVendorEmail);
   elements.statementRows.addEventListener("click", handleStatementAction);
   elements.statementRows.addEventListener("change", handleStatementSelection);
   elements.selectAllStatementRows.addEventListener("change", toggleAllStatementRows);
@@ -373,6 +376,7 @@ function bindForms() {
     addEntryFromForm(event.currentTarget, "DELIVERED");
     event.currentTarget.reset();
     setDefaultDates();
+    updateDeliveryVendorEmail();
     showToast("Delivery saved.");
   });
 
@@ -387,6 +391,7 @@ function bindForms() {
 
 function addEntryFromForm(form, type) {
   const vendorId = resolveAkrabiId(form);
+  saveDeliveryVendorEmail(form, vendorId);
   const entry = {
     id: makeId(),
     date: form.elements.date.value,
@@ -429,11 +434,26 @@ function renderVendorOptions() {
     select.innerHTML = options || '<option value="" disabled selected>Add vendor first</option>';
     if (selected) select.value = selected;
   });
+  updateDeliveryVendorEmail();
 
   elements.akrabiOptions.innerHTML = state.vendors
     .map((vendor) => `<option value="${escapeHtml(vendor.name)}"></option>`)
     .join("");
 
+}
+
+function updateDeliveryVendorEmail() {
+  const vendorId = elements.deliveryForm.elements.vendorId.value;
+  const vendor = state.vendors.find((item) => item.id === vendorId);
+  elements.deliveryForm.elements.vendorEmail.value = vendor?.email || "";
+}
+
+function saveDeliveryVendorEmail(form, vendorId) {
+  if (!form.elements.vendorEmail) return;
+  const email = cleanEmail(form.elements.vendorEmail.value);
+  if (!email) return;
+  const vendor = state.vendors.find((item) => item.id === vendorId);
+  if (vendor) vendor.email = email;
 }
 
 function resolveAkrabiId(form) {
