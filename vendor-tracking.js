@@ -43,11 +43,13 @@ const elements = {
   printVendorName: document.querySelector("#printVendorName"),
   printReportPeriod: document.querySelector("#printReportPeriod"),
   statementEmpty: document.querySelector("#statementEmpty"),
+  statementOverview: document.querySelector("#statementOverview"),
   statementTableWrap: document.querySelector("#statementTableWrap"),
   statementRows: document.querySelector("#statementRows"),
   statementHeadingVendor: document.querySelector("#statementHeadingVendor"),
   statementHeadingProduct: document.querySelector("#statementHeadingProduct"),
   quantitySummary: document.querySelector("#quantitySummary"),
+  quantitySummaryPanel: document.querySelector("#quantitySummaryPanel"),
   selectAllStatementRows: document.querySelector("#selectAllStatementRows"),
   paySelectedRows: document.querySelector("#paySelectedRows"),
   printPaidReport: document.querySelector("#printPaidReport"),
@@ -713,13 +715,15 @@ function renderStatement() {
     ? "No statement found for that vendor."
     : "No statement records for this month.";
   elements.statementEmpty.hidden = hasResults;
+  elements.statementOverview.hidden = !hasResults;
   elements.statementTableWrap.hidden = !hasResults;
+  elements.quantitySummaryPanel.hidden = !hasResults;
   elements.quantitySummary.hidden = !hasResults;
   elements.statementTotalBar.hidden = !hasResults;
   elements.paymentBar.hidden = !hasResults;
   document.querySelector("#statementSubtext").textContent = searchText
     ? `Search results for "${elements.statementSearch.value.trim()}"`
-    : "All vendors - each saved record shown separately.";
+    : "Search a vendor or review this month.";
 
   elements.quantitySummary.innerHTML = buildQuantitySummary(statementEntries);
 

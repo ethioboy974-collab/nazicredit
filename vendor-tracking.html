@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-clean-dashboard" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-statement-clean" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -310,11 +310,11 @@
           <section class="panel statement-panel">
             <div class="panel-heading statement-heading">
               <div>
-                <h3>All vendor statement</h3>
-                <p id="statementSubtext">All vendors - each saved record shown separately.</p>
+                <h3>Vendor statement</h3>
+                <p id="statementSubtext">Search a vendor or review this month.</p>
               </div>
               <label class="compact-select">
-                Search vendor
+                Find vendor
                 <input id="statementSearch" type="search" list="akrabiOptions" placeholder="Vendor name" autocomplete="off" />
               </label>
             </div>
@@ -324,7 +324,32 @@
               <p id="printReportPeriod"></p>
             </div>
             <div class="empty-state" id="statementEmpty" hidden></div>
-            <div class="quantity-summary" id="quantitySummary" hidden></div>
+            <div class="statement-overview" id="statementOverview" hidden>
+              <div class="statement-total" id="statementTotalBar" hidden>
+                <span>Total amount to pay</span>
+                <strong id="statementTotal">$0</strong>
+              </div>
+              <details class="statement-section-details" id="quantitySummaryPanel" hidden>
+                <summary class="statement-section-summary">
+                  <span>Quantity summary</span>
+                  <span class="details-toggle" aria-hidden="true"></span>
+                </summary>
+                <div class="quantity-summary" id="quantitySummary" hidden></div>
+              </details>
+              <details class="statement-section-details payment-bar" id="paymentBar" hidden>
+                <summary class="statement-section-summary">
+                  <span>Payment tools</span>
+                  <small id="paymentStatus">No payment recorded</small>
+                  <span class="details-toggle" aria-hidden="true"></span>
+                </summary>
+                <div class="payment-actions">
+                  <button class="primary-action" id="paySelectedRows" type="button">Pay selected</button>
+                  <button class="secondary-action" id="printPaidReport" type="button">Print paid report</button>
+                  <button class="secondary-action danger-outline" id="markUnpaid" type="button">Mark unpaid</button>
+                  <button class="secondary-action danger-outline" id="clearPaidRecords" type="button">Clear paid records</button>
+                </div>
+              </details>
+            </div>
             <div class="table-wrap statement-sheet-wrap" id="statementTableWrap" hidden>
               <div class="statement-sheet-heading">
                 <span>Vendor: <strong id="statementHeadingVendor">All vendors</strong></span>
@@ -337,29 +362,18 @@
                       <input id="selectAllStatementRows" type="checkbox" aria-label="Select all statement rows">
                     </th>
                     <th class="sheet-row-number" aria-label="Row number">#</th>
-                    <th>Date &amp; time</th>
+                    <th>Date</th>
                     <th>Type</th>
                     <th>Product</th>
-                    <th>Recorded quantity</th>
-                    <th>Unit price (USD)</th>
-                    <th>Amount (USD)</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Amount</th>
                     <th>Status</th>
                     <th class="statement-action-column">Action</th>
                   </tr>
                 </thead>
                 <tbody id="statementRows"></tbody>
               </table>
-            </div>
-            <div class="statement-total" id="statementTotalBar" hidden>
-              <span>Total amount to pay</span>
-              <strong id="statementTotal">$0</strong>
-            </div>
-            <div class="payment-bar" id="paymentBar" hidden>
-              <button class="primary-action" id="paySelectedRows" type="button">Pay selected</button>
-              <button class="secondary-action" id="printPaidReport" type="button">Print paid report</button>
-              <button class="secondary-action danger-outline" id="markUnpaid" type="button">Mark unpaid</button>
-              <button class="secondary-action danger-outline" id="clearPaidRecords" type="button">Clear paid records</button>
-              <span id="paymentStatus">No payment recorded</span>
             </div>
           </section>
         </section>
@@ -448,7 +462,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-clean-dashboard"></script>
+    <script src="vendor-tracking.js?v=20260804-statement-clean"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>
