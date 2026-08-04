@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customer Credit Ledger</title>
+    <link rel="stylesheet" href="styles.css?v=20260709-2" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Credit Ledger</p>
+          <h1>Customer Credit</h1>
+          <p class="enterprise-line" id="enterpriseStatus">Loading enterprise...</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="syncButton" type="button" title="Refresh records" aria-label="Refresh records">
+            <span aria-hidden="true">&#8635;</span>
+          </button>
+          <button class="icon-button" id="printLedgerButton" type="button" title="Print ledger" aria-label="Print ledger">
+            <span aria-hidden="true">&#9113;</span>
+          </button>
+          <button class="icon-button" id="settingsButton" type="button" title="Data settings" aria-label="Data settings">
+            <span aria-hidden="true">&#9881;</span>
+          </button>
+          <a class="toolbar-button" href="barcode-printer.html">Barcode</a>
+          <a class="toolbar-button" href="vendor-tracking.html">Vendors</a>
+          <a class="toolbar-button" href="meat-orders.html">Order</a>
+          <a class="toolbar-button" id="aiDashboardLink" href="ai-dashboard.html">AI Dashboard</a>
+          <a class="toolbar-button" id="financeLink" href="finance-dashboard.html">Income</a>
+          <button class="toolbar-button" id="accountButton" type="button">Account</button>
+          <button class="icon-button" id="logoutButton" type="button" title="Lock app" aria-label="Lock app">
+            <span aria-hidden="true">&#9211;</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Credit summary">
+        <article class="metric">
+          <span>Total Credit</span>
+          <strong id="metricTotal">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Total Paid</span>
+          <strong id="metricPaid">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Balance Due</span>
+          <strong id="metricBalance">$0.00</strong>
+        </article>
+        <article class="metric">
+          <span>Open Accounts</span>
+          <strong id="metricOpen">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <form class="panel record-form" id="recordForm">
+          <div class="panel-heading">
+            <h2>Add Credit Record</h2>
+          </div>
+          <label>
+            Customer
+            <input id="customerName" autocomplete="name" required />
+          </label>
+          <label>
+            Phone
+            <input id="customerPhone" autocomplete="tel" />
+          </label>
+          <label>
+            Item or note
+            <input id="itemNote" required />
+          </label>
+          <div class="two-column">
+            <label>
+              Credit date
+              <input id="creditDate" type="date" required />
+            </label>
+            <label>
+              Time
+              <input id="creditTime" type="time" required />
+            </label>
+          </div>
+          <label>
+            Amount
+            <input id="creditAmount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <button class="primary-button" type="submit">Save Record</button>
+        </form>
+
+        <section class="panel records-panel" aria-labelledby="recordsHeading">
+          <div class="panel-heading records-heading">
+            <div>
+              <h2 id="recordsHeading">Credit Records</h2>
+              <p id="storageStatus">Stored on this device</p>
+            </div>
+            <div class="list-tools">
+              <label class="show-paid-toggle">
+                <input id="showPaid" type="checkbox" />
+                <span>Show paid</span>
+              </label>
+              <label class="search-box">
+                <span>Search</span>
+                <input id="searchInput" type="search" placeholder="Name, phone, item" />
+              </label>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Item</th>
+                  <th>Date / Time</th>
+                  <th class="money">Credit</th>
+                  <th class="money">Paid</th>
+                  <th class="money">Balance</th>
+                  <th>Status</th>
+                  <th class="actions-col">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+            <div class="empty-state" id="emptyState">
+              <strong id="emptyTitle">No records yet</strong>
+              <span id="emptyText">Add the first customer credit record to start the ledger.</span>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="paymentDialog">
+      <form id="paymentForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Payment</p>
+            <h2 id="paymentTitle">Update Payment</h2>
+          </div>
+          <button class="icon-button small" value="cancel" type="button" formnovalidate title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <input id="paymentRecordId" type="hidden" />
+        <div class="two-column">
+          <label>
+            Payment date
+            <input id="paymentDate" type="date" required />
+          </label>
+          <label>
+            Time
+            <input id="paymentTime" type="time" required />
+          </label>
+        </div>
+        <label>
+          Amount
+          <input id="paymentAmount" type="number" min="0.01" step="0.01" required />
+        </label>
+        <label>
+          Note
+          <input id="paymentNote" placeholder="Cash, transfer, check" />
+        </label>
+        <div class="dialog-actions">
+          <button class="ghost-button" value="cancel" type="button" id="cancelPaymentButton">Cancel</button>
+          <button class="primary-button" value="default" type="submit">Save Payment</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editDialog">
+      <form id="editForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Edit</p>
+            <h2 id="editTitle">Edit Credit Record</h2>
+          </div>
+          <button class="icon-button small" value="cancel" type="button" formnovalidate title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <input id="editRecordId" type="hidden" />
+        <label>
+          Customer
+          <input id="editCustomerName" autocomplete="name" required />
+        </label>
+        <label>
+          Phone
+          <input id="editCustomerPhone" autocomplete="tel" />
+        </label>
+        <label>
+          Item or note
+          <input id="editItemNote" required />
+        </label>
+        <div class="two-column">
+          <label>
+            Credit date
+            <input id="editCreditDate" type="date" required />
+          </label>
+          <label>
+            Time
+            <input id="editCreditTime" type="time" required />
+          </label>
+        </div>
+        <label>
+          Amount
+          <input id="editCreditAmount" type="number" min="0.01" step="0.01" required />
+        </label>
+        <div class="dialog-actions">
+          <button class="ghost-button" value="cancel" type="button" id="cancelEditButton">Cancel</button>
+          <button class="primary-button" value="default" type="submit">Save Changes</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="historyDialog">
+      <div class="history-panel">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">History</p>
+            <h2 id="historyTitle">Payment History</h2>
+          </div>
+          <button class="icon-button small" type="button" id="closeHistoryButton" title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="history-summary" id="historySummary"></div>
+        <div class="history-list" id="historyList"></div>
+        <div class="dialog-actions">
+          <button class="ghost-button" type="button" id="historyUndoButton">Undo Last Payment</button>
+          <button class="primary-button" type="button" id="historyDoneButton">Done</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="settingsDialog">
+      <form id="settingsForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Database</p>
+            <h2>Data Settings</h2>
+          </div>
+          <button class="icon-button small" value="cancel" type="button" formnovalidate title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <label class="switch-row">
+          <input id="useMysql" type="checkbox" checked />
+          <span>Use MySQL backend</span>
+        </label>
+        <label>
+          MySQL API URL
+          <input id="apiUrl" type="url" placeholder="http://127.0.0.1:5500/api" />
+        </label>
+        <label class="switch-row">
+          <input id="useSheets" type="checkbox" />
+          <span>Use Google Sheets endpoint</span>
+        </label>
+        <label>
+          Apps Script web app URL
+          <input id="sheetsUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+        <p class="helper-text">
+          MySQL is used when this app is opened through the included server. Leave the API URL blank for the same server, or paste a custom API URL.
+        </p>
+        <div class="dialog-actions">
+          <button class="ghost-button" value="cancel" type="button" id="cancelSettingsButton">Cancel</button>
+          <button class="primary-button" value="default" type="submit">Save Settings</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="wide-dialog" id="accountDialog">
+      <div class="account-panel">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Signed-in User</p>
+            <h2>Account</h2>
+            <p class="helper-text" id="accountIdentity"></p>
+          </div>
+          <button class="icon-button small" type="button" title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+
+        <form class="account-section" id="recoveryEmailForm" hidden>
+          <h3>Recovery Email</h3>
+          <label>
+            Email address
+            <input id="recoveryEmail" type="email" autocomplete="email" maxlength="254" required />
+          </label>
+          <p class="helper-text" id="recoveryEmailStatus"></p>
+          <div class="dialog-actions">
+            <button class="ghost-button" id="resendVerificationButton" type="button">Resend Verification</button>
+            <button class="primary-button" type="submit">Save Recovery Email</button>
+          </div>
+        </form>
+
+        <form class="account-section" id="passwordForm">
+          <h3>Change Password</h3>
+          <label>
+            Current password
+            <input id="currentPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <div class="two-column">
+            <label>
+              New password
+              <input id="newPassword" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+            <label>
+              Confirm new password
+              <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+          </div>
+          <button class="primary-button" type="submit">Update Password</button>
+        </form>
+
+        <section class="account-section" id="teamSection" hidden>
+          <div class="section-heading">
+            <div>
+              <h3>Employee Accounts</h3>
+              <p class="helper-text">Employees can use credit, orders, barcode, inventory, and vendor entry. Owner-only financial areas remain protected.</p>
+            </div>
+          </div>
+          <form class="staff-form" id="staffForm">
+            <input id="staffUserId" type="hidden" />
+            <div class="two-column">
+              <label>
+                Display name
+                <input id="staffDisplayName" maxlength="160" required />
+              </label>
+              <label>
+                Username
+                <input id="staffUsername" autocomplete="off" maxlength="80" required />
+              </label>
+            </div>
+            <label id="staffEmailLabel" hidden>
+              Recovery email
+              <input id="staffEmail" type="email" autocomplete="off" maxlength="254" required />
+            </label>
+            <div class="two-column">
+              <label>
+                Role
+                <select id="staffRole">
+                  <option value="employee">Employee</option>
+                </select>
+              </label>
+              <label>
+                Temporary password
+                <input id="staffPassword" type="password" autocomplete="new-password" minlength="8" />
+              </label>
+            </div>
+            <div class="dialog-actions">
+              <button class="ghost-button" id="cancelStaffEditButton" type="button" hidden>Cancel Edit</button>
+              <button class="primary-button" id="saveStaffButton" type="submit">Add Employee Account</button>
+            </div>
+          </form>
+          <div class="staff-list" id="staffList"></div>
+        </section>
+
+        <section class="account-section" id="platformSection" hidden>
+          <div class="section-heading">
+            <div>
+              <h3>Main Enterprise Controls</h3>
+              <p class="helper-text">Generate registration codes and review businesses from the first enterprise owner account.</p>
+            </div>
+          </div>
+          <div class="platform-grid">
+            <section class="platform-panel" aria-labelledby="platformInvitationsHeading">
+              <div class="section-heading compact-heading">
+                <div>
+                  <h4 id="platformInvitationsHeading">Registration Invitations</h4>
+                  <p class="helper-text">One-time access codes you give to approved businesses.</p>
+                </div>
+                <button class="primary-button" id="generateInvitationButton" type="button">
+                  Generate
+                </button>
+              </div>
+              <section class="generated-invitation" id="generatedInvitation" hidden>
+                <label>
+                  New invitation code
+                  <div class="invite-code-row">
+                    <input id="generatedInvitationCode" readonly />
+                    <button class="ghost-button" id="copyInvitationButton" type="button">Copy</button>
+                  </div>
+                </label>
+                <p class="helper-text" id="generatedInvitationExpiry"></p>
+              </section>
+              <div class="invitation-list" id="invitationList"></div>
+            </section>
+
+            <section class="platform-panel" aria-labelledby="platformEnterpriseHeading">
+              <div class="section-heading compact-heading">
+                <div>
+                  <h4 id="platformEnterpriseHeading">Registered Enterprises</h4>
+                  <p class="helper-text">Businesses appear here after they register with your code.</p>
+                </div>
+              </div>
+              <div class="enterprise-list" id="enterpriseList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="account-section" id="activitySection" hidden>
+          <div class="section-heading">
+            <h3>Recent Activity</h3>
+            <button class="ghost-button compact-button" id="refreshActivityButton" type="button">Refresh</button>
+          </div>
+          <div class="activity-list" id="activityList"></div>
+        </section>
+      </div>
+    </dialog>
+
+    <dialog id="enterpriseAccessDialog">
+      <form id="enterpriseAccessForm">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Account Recovery</p>
+            <h2>Reset Enterprise Access</h2>
+            <p class="helper-text" id="enterpriseAccessName"></p>
+          </div>
+          <button class="icon-button small" type="button" title="Close" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <input id="enterpriseAccessId" type="hidden" />
+        <label>
+          Owner username
+          <input id="enterpriseOwnerUsername" autocomplete="off" required />
+        </label>
+        <label>
+          Temporary password
+          <input id="enterpriseTemporaryPassword" type="password" autocomplete="new-password" minlength="8" required />
+        </label>
+        <p class="helper-text">The owner must change this password after signing in.</p>
+        <div class="dialog-actions">
+          <button class="ghost-button" id="cancelEnterpriseAccessButton" type="button">Cancel</button>
+          <button class="primary-button" type="submit">Reset Access</button>
+        </div>
+      </form>
+    </dialog>
+
+    <section id="printArea" aria-hidden="true"></section>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js?v=20260729-roles"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Name Labels | NaziCredit</title>
+  <link rel="stylesheet" href="quick-barcode.css?v=20260730-names">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><p class="eyebrow">Simple printing</p><h1>Name Labels</h1><p>Enter product names and print clean labels containing names only.</p></div>
+      <nav><a href="barcode-printer.html">Full Barcode Page</a><a href="index.html">Home</a></nav>
+    </header>
+    <section class="panel">
+      <form id="quickBarcodeForm">
+        <label for="productName">Product name</label>
+        <div class="entry-row">
+          <input id="productName" maxlength="160" autocomplete="off" placeholder="Example: Coca-Cola" required autofocus>
+          <div class="quantity-control">
+            <button class="secondary" id="decreaseQuantity" type="button" aria-label="Decrease quantity">−</button>
+            <label for="labelQuantity">Quantity
+              <input id="labelQuantity" type="number" min="1" max="30" step="1" value="1" required>
+            </label>
+            <button class="secondary" id="increaseQuantity" type="button" aria-label="Increase quantity">+</button>
+          </div>
+          <button type="submit">Add Labels</button>
+          <button class="secondary" id="fillThirtyButton" type="button">Fill 30</button>
+        </div>
+        <p id="message" role="status">0 of 30 labels ready. No barcode or price will appear.</p>
+      </form>
+    </section>
+    <section class="panel preview-panel" id="previewPanel" hidden>
+      <div class="preview-heading"><div><p class="eyebrow">Ready to print</p><h2>Name-label preview</h2></div><button id="clearButton" class="secondary" type="button">Clear All</button></div>
+      <div class="sheet-scroll"><div class="label-sheet" id="labelSheet" aria-label="30-label print sheet"></div></div>
+      <button id="printButton" type="button">Print Name Labels</button>
+    </section>
+  </main>
+  <script src="quick-barcode.js?v=20260730-names"></script>
+  <script src="session-guard.js"></script>
+</body>
+</html>

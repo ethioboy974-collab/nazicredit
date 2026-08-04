@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Active Orders | NaziCredit</title>
+    <link rel="stylesheet" href="meat-orders.css?v=20260802-order-notifications" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Customer Orders</p>
+          <h1>Active Orders</h1>
+          <p class="subtitle">A full-screen view of every order that still needs attention.</p>
+        </div>
+        <nav class="topbar-actions" aria-label="Order navigation">
+          <a class="primary-link-button" href="create-order.html">+ Create Order</a>
+          <a class="toolbar-button" href="completed-orders.html">Order History</a>
+          <a class="toolbar-button" href="index.html">Credit</a>
+          <button class="toolbar-button" id="refreshButton" type="button">Refresh</button>
+          <button class="toolbar-button clear-demo-button" id="clearDemoButton" type="button" hidden>Clear Demo Orders</button>
+        </nav>
+      </header>
+
+      <section class="panel full-orders-panel">
+        <div class="panel-heading">
+          <div><p class="step">Prepare next</p><h2>Active orders <span class="count" id="activeCount">0</span></h2></div>
+          <p class="helper">For each order, press the one action under Next Step. The customer is texted automatically when you mark the order ready.</p>
+        </div>
+        <p class="form-message" id="pageMessage" role="status"></p>
+        <div class="order-table-wrap full-order-table">
+          <table class="order-sheet">
+            <thead>
+              <tr>
+                <th>#</th><th>Pickup date &amp; time</th><th>Time / status</th>
+                <th>Customer</th><th>Phone</th><th>Products</th>
+                <th>Order notes</th><th>Taken by</th><th>Customer text</th><th>Next step</th>
+              </tr>
+            </thead>
+            <tbody id="activeOrders"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="activeEmpty">No active orders.</p>
+      </section>
+    </main>
+
+    <script src="meat-orders.js?v=20260802-order-notifications"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

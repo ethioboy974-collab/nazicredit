@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vendor Ledger | NaziCredit</title>
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260728-statement-responsive" />
+  </head>
+  <body>
+    <section class="login-screen hidden" id="loginScreen">
+      <div class="login-panel">
+        <div class="brand login-brand">
+          <div class="brand-mark">VL</div>
+          <div>
+            <h1>Vendor Ledger</h1>
+            <p>Vendor stock and payment tracking</p>
+          </div>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>
+            Username
+            <input name="username" type="text" autocomplete="username" value="admin" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autocomplete="current-password" value="admin123" required />
+          </label>
+          <button class="primary-action" type="submit">Log in</button>
+        </form>
+        <div class="demo-access">
+          <strong>Demo access</strong>
+          <span>Admin: admin / admin123</span>
+          <span>Staff: staff / staff123</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">VL</div>
+          <div>
+            <h1>Vendor Ledger</h1>
+            <p>Inventory and monthly payments</p>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Main views">
+          <button class="nav-tab active" data-view="dashboard" type="button">
+            <span aria-hidden="true">#</span>
+            Dashboard
+          </button>
+          <button class="nav-tab" data-view="vendors" type="button">
+            <span aria-hidden="true">V</span>
+            Vendor
+          </button>
+          <button class="nav-tab" data-view="receive" type="button">
+            <span aria-hidden="true">+</span>
+            Receive
+          </button>
+          <button class="nav-tab" data-view="adjust" type="button">
+            <span aria-hidden="true">-</span>
+            Spoilage
+          </button>
+          <button class="nav-tab" data-view="statement" type="button">
+            <span aria-hidden="true">$</span>
+            Statement
+          </button>
+        </nav>
+
+        <div class="month-box">
+          <label for="activeMonth">Month</label>
+          <input id="activeMonth" type="month" />
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="topbar">
+          <div>
+            <p class="eyebrow">Working month</p>
+            <h2 id="monthTitle">Monthly vendor payments</h2>
+            <p class="user-line" id="userLine">Signed in</p>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="exportCsv" type="button" title="Export CSV" aria-label="Export CSV">
+              Export CSV
+            </button>
+            <button class="icon-button" id="printReport" type="button" title="Print statement" aria-label="Print statement">
+              Print / PDF
+            </button>
+          </div>
+        </section>
+
+        <section class="view active" id="dashboard">
+          <div class="metric-grid">
+            <article class="metric">
+              <p>Total received</p>
+              <strong id="metricReceived">$0</strong>
+            </article>
+            <article class="metric">
+              <p>Spoiled value</p>
+              <strong id="metricSpoiled">$0</strong>
+            </article>
+            <article class="metric">
+              <p>Payable</p>
+              <strong id="metricPayable">$0</strong>
+            </article>
+            <article class="metric">
+              <p>Open vendors</p>
+              <strong id="metricVendors">0</strong>
+            </article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Vendor balances</h3>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Vendor</th>
+                      <th>Received</th>
+                      <th>Deductions</th>
+                      <th>Payable</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vendorBalanceRows"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Recent activity</h3>
+              </div>
+              <div class="activity-list" id="activityList"></div>
+            </section>
+          </div>
+
+          <section class="panel history-panel">
+            <div class="panel-heading">
+              <h3>Saved history</h3>
+              <p>All records across every month</p>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time created</th>
+                    <th>Vendor</th>
+                    <th>Action</th>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Unit price (USD)</th>
+                    <th>Value</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="historyRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="receive">
+          <section class="panel form-panel">
+            <div class="panel-heading">
+              <h3>Record received product</h3>
+            </div>
+            <form id="deliveryForm" class="entry-form">
+              <label>
+                Date
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Vendor
+                <select name="vendorId" required></select>
+              </label>
+              <label>
+                Product
+                <input name="product" type="text" required />
+              </label>
+              <label>
+                Quantity
+                <input name="quantity" type="number" min="0.01" step="0.01" required />
+              </label>
+              <label>
+                Unit
+                <select name="unit" required>
+                  <option value="piece">piece</option>
+                  <option value="kg">kg</option>
+                  <option value="box">box</option>
+                  <option value="bag">bag</option>
+                  <option value="crate">crate</option>
+                </select>
+              </label>
+              <label>
+                Unit price (USD)
+                <input name="unitPrice" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label class="wide">
+                Note
+                <input name="note" type="text" placeholder="Invoice, quality, or batch note" />
+              </label>
+              <button class="primary-action" type="submit">Save delivery</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="adjust">
+          <section class="panel form-panel">
+            <div class="panel-heading">
+              <h3>Record spoilage or return</h3>
+            </div>
+            <form id="adjustmentForm" class="entry-form">
+              <label>
+                Date
+                <input name="date" type="date" required />
+              </label>
+              <label>
+                Vendor
+                <select name="vendorId" required></select>
+              </label>
+              <label>
+                Product
+                <input name="product" type="text" required />
+              </label>
+              <label>
+                Quantity
+                <input name="quantity" type="number" min="0.01" step="0.01" required />
+              </label>
+              <label>
+                Unit
+                <select name="unit" required>
+                  <option value="piece">piece</option>
+                  <option value="kg">kg</option>
+                  <option value="box">box</option>
+                  <option value="bag">bag</option>
+                  <option value="crate">crate</option>
+                </select>
+              </label>
+              <label>
+                Unit price (USD)
+                <input name="unitPrice" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <button class="primary-action danger" type="submit">Save spoilage</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="vendors">
+          <div class="content-grid two-thirds">
+            <section class="panel form-panel">
+              <div class="panel-heading">
+                <h3>Add vendor</h3>
+              </div>
+              <form id="vendorForm" class="entry-form stacked">
+                <label>
+                  Vendor name
+                  <input name="name" type="text" required />
+                </label>
+                <label>
+                  Phone
+                  <input name="phone" type="tel" />
+                </label>
+                <label>
+                  Payment method
+                  <select name="paymentMethod">
+                    <option value="Cash">Cash</option>
+                    <option value="Check">Check</option>
+                    <option value="Bank transfer">Bank transfer</option>
+                    <option value="Mobile money">Mobile money</option>
+                  </select>
+                </label>
+                <button class="primary-action" type="submit">Add vendor</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Vendor list</h3>
+                <div class="akrabi-list-controls">
+                  <label class="akrabi-search">
+                    <span class="sr-only">Search Vendor</span>
+                    <input id="vendorSearch" type="search" placeholder="Search name or phone" autocomplete="off">
+                  </label>
+                  <button class="secondary-action" id="toggleVendorList" type="button" aria-expanded="false">Show Vendor List</button>
+                </div>
+              </div>
+              <div class="vendor-list" id="vendorList" hidden></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="statement">
+          <section class="panel statement-panel">
+            <div class="panel-heading statement-heading">
+              <div>
+                <h3>All vendor statement</h3>
+                <p id="statementSubtext">All vendors - each saved record shown separately.</p>
+              </div>
+              <label class="compact-select">
+                Search vendor
+                <input id="statementSearch" type="search" list="akrabiOptions" placeholder="Vendor name" autocomplete="off" />
+              </label>
+            </div>
+            <div class="print-report-header" id="printReportHeader">
+              <h2>Vendor Statement</h2>
+              <p id="printVendorName"></p>
+              <p id="printReportPeriod"></p>
+            </div>
+            <div class="empty-state" id="statementEmpty" hidden></div>
+            <div class="table-wrap statement-sheet-wrap" id="statementTableWrap" hidden>
+              <div class="statement-sheet-heading">
+                <span>Vendor: <strong id="statementHeadingVendor">All vendors</strong></span>
+                <span>Product: <strong id="statementHeadingProduct">All products</strong></span>
+              </div>
+              <table class="statement-sheet">
+                <thead>
+                  <tr>
+                    <th class="sheet-select-column">
+                      <input id="selectAllStatementRows" type="checkbox" aria-label="Select all statement rows">
+                    </th>
+                    <th class="sheet-row-number" aria-label="Row number">#</th>
+                    <th>Date &amp; time</th>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>Unit price (USD)</th>
+                    <th>Amount (USD)</th>
+                    <th>Status</th>
+                    <th class="statement-action-column">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="statementRows"></tbody>
+              </table>
+            </div>
+            <div class="statement-total" id="statementTotalBar" hidden>
+              <span>Total amount to pay</span>
+              <strong id="statementTotal">$0</strong>
+            </div>
+            <div class="payment-bar" id="paymentBar" hidden>
+              <button class="primary-action" id="paySelectedRows" type="button">Pay selected</button>
+              <button class="secondary-action" id="printPaidReport" type="button">Print paid report</button>
+              <button class="secondary-action danger-outline" id="markUnpaid" type="button">Mark unpaid</button>
+              <button class="secondary-action danger-outline" id="clearPaidRecords" type="button">Clear paid records</button>
+              <span id="paymentStatus">No payment recorded</span>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <datalist id="akrabiOptions"></datalist>
+
+    <dialog class="edit-dialog" id="editDialog">
+      <form id="editForm" class="entry-form edit-form" method="dialog">
+        <div class="dialog-heading">
+          <h3>Edit saved record</h3>
+          <button class="close-button" value="cancel" type="submit" aria-label="Close">x</button>
+        </div>
+        <input name="id" type="hidden" />
+        <label>
+          Date
+          <input name="date" type="date" required />
+        </label>
+        <label>
+          Product
+          <input name="product" type="text" required />
+        </label>
+        <label>
+          Quantity
+          <input name="quantity" type="number" min="0.01" step="0.01" required />
+        </label>
+        <label>
+          Unit
+          <select name="unit" required>
+            <option value="piece">piece</option>
+            <option value="kg">kg</option>
+            <option value="box">box</option>
+            <option value="bag">bag</option>
+            <option value="crate">crate</option>
+          </select>
+        </label>
+        <label>
+          Unit price (USD)
+          <input name="unitPrice" type="number" min="0" step="0.01" required />
+        </label>
+        <label class="wide">
+          Note
+          <input name="note" type="text" />
+        </label>
+        <div class="dialog-actions">
+          <button class="secondary-action" value="cancel" type="submit">Cancel</button>
+          <button class="primary-action" id="saveEdit" value="default" type="button">Save changes</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="edit-dialog" id="vendorDialog">
+      <form id="vendorEditForm" class="entry-form edit-form" method="dialog">
+        <div class="dialog-heading">
+          <h3>Edit vendor</h3>
+          <button class="close-button" value="cancel" type="submit" aria-label="Close">x</button>
+        </div>
+        <input name="id" type="hidden" />
+        <label>
+          Vendor name
+          <input name="name" type="text" required />
+        </label>
+        <label>
+          Phone
+          <input name="phone" type="tel" />
+        </label>
+        <label>
+          Payment method
+          <select name="paymentMethod">
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Bank transfer">Bank transfer</option>
+            <option value="Mobile money">Mobile money</option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button class="secondary-action" value="cancel" type="submit">Cancel</button>
+          <button class="primary-action" id="saveVendorEdit" value="default" type="button">Save vendor</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="vendor-tracking.js?v=20260729-roles"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Income &amp; Revenue | NaziCredit</title>
+    <link rel="stylesheet" href="finance-dashboard.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar">
+        <a class="brand" href="index.html"><span>NC</span><strong>NaziCredit</strong></a>
+        <div class="module-name">Income &amp; Revenue</div>
+        <nav class="main-nav" aria-label="Finance views">
+          <button class="nav-button active" data-view="dashboard" type="button"><span>▦</span>Dashboard</button>
+          <button class="nav-button" data-view="revenue" type="button"><span>＋</span>Revenue</button>
+          <button class="nav-button" data-view="expenses" type="button"><span>−</span>Expenses</button>
+          <button class="nav-button" data-view="reports" type="button"><span>↗</span>Reports</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <a href="meat-orders.html">Order</a>
+          <a href="index.html">Customer Credit</a>
+          <a href="vendor-tracking.html">Vendors</a>
+          <button id="logoutButton" type="button">Log out</button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="mobile-header">
+          <div><p>Income &amp; Revenue</p><strong id="mobileTitle">Dashboard</strong></div>
+          <button id="mobileMenu" type="button" aria-label="Open menu">☰</button>
+        </header>
+
+        <section class="view active" id="dashboardView">
+          <div class="page-heading">
+            <div><p class="eyebrow">Business overview</p><h1>Dashboard</h1><p>Clear numbers for today, this week, and this month.</p></div>
+            <div class="heading-actions">
+              <button class="clear-all-button" id="clearAllButton" type="button">Clear All Data</button>
+              <button class="primary-action" data-go="revenue" type="button">+ Add Revenue</button>
+            </div>
+          </div>
+
+          <section class="summary-grid" aria-label="Finance summary">
+            <article class="summary-card revenue"><span>Today’s Revenue</span><strong id="todayRevenue">$0.00</strong><small>Money earned today</small></article>
+            <article class="summary-card expense"><span>Today’s Expenses</span><strong id="todayExpenses">$0.00</strong><small>Money spent today</small></article>
+            <article class="summary-card profit"><span>Today’s Net Profit</span><strong id="todayProfit">$0.00</strong><small>Revenue minus expenses</small></article>
+            <article class="summary-card"><span>This Week Profit</span><strong id="weekProfit">$0.00</strong><small>Since Monday</small></article>
+            <article class="summary-card"><span>This Month Profit</span><strong id="monthProfit">$0.00</strong><small>Current calendar month</small></article>
+          </section>
+
+          <section class="business-summary">
+            <div><p class="eyebrow">Owner’s daily brief</p><h2>Business Summary</h2></div>
+            <p id="businessSummary">Add today’s revenue and expenses to see your daily insight.</p>
+            <div class="brief-grid">
+              <div><span>Revenue</span><strong id="briefRevenue">$0.00</strong></div>
+              <div><span>Expenses</span><strong id="briefExpenses">$0.00</strong></div>
+              <div><span>Profit</span><strong id="briefProfit">$0.00</strong></div>
+              <div><span>Biggest expense</span><strong id="biggestExpense">None today</strong></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><div><h2>Recent activity</h2><p>Your latest revenue and expenses</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Payment</th><th>Amount</th></tr></thead><tbody id="recentRows"></tbody></table></div>
+            <p class="empty" id="recentEmpty">No finance activity yet.</p>
+          </section>
+        </section>
+
+        <section class="view" id="revenueView">
+          <div class="page-heading"><div><p class="eyebrow">Money in</p><h1>Revenue</h1><p>Record income in a few seconds.</p></div></div>
+          <div class="entry-layout">
+            <form class="panel entry-form" id="revenueForm" data-type="revenue">
+              <div class="panel-heading"><div><h2 id="revenueFormTitle">Add Revenue</h2><p>All fields marked * are required.</p></div></div>
+              <input name="id" type="hidden" />
+              <label>Amount *<div class="money-input"><span>$</span><input name="amount" type="number" min=".01" step=".01" inputmode="decimal" required /></div></label>
+              <label>Category *<select name="category" required><option value="">Choose category</option><option value="sales">Sales</option><option value="grocery">Grocery</option><option value="meat">Meat</option><option value="restaurant">Restaurant</option><option value="other">Other</option></select></label>
+              <label>Payment method *<select name="paymentMethod" required><option value="">Choose method</option><option value="cash">Cash</option><option value="card">Card</option><option value="bank transfer">Bank transfer</option><option value="mobile payment">Mobile payment</option><option value="other">Other</option></select></label>
+              <label>Date *<input name="entryDate" type="date" required /></label>
+              <label>Notes<textarea name="notes" maxlength="500" rows="3" placeholder="Optional detail"></textarea></label>
+              <div class="form-actions"><button class="primary-action" type="submit">Save Revenue</button><button class="secondary-action cancel-edit" type="button" hidden>Cancel</button></div>
+              <p class="form-status" role="status"></p>
+            </form>
+            <section class="panel entries-panel">
+              <div class="panel-heading"><div><h2>Revenue Entries</h2><p id="revenueCount">0 entries</p></div><input class="search" data-search="revenue" placeholder="Search…" /></div>
+              <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Payment</th><th>Notes</th><th>Amount</th><th></th></tr></thead><tbody id="revenueRows"></tbody></table></div>
+              <p class="empty" id="revenueEmpty">No revenue entries yet.</p>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="expensesView">
+          <div class="page-heading"><div><p class="eyebrow">Money out</p><h1>Expenses</h1><p>Keep spending organized without accounting complexity.</p></div></div>
+          <div class="entry-layout">
+            <form class="panel entry-form" id="expenseForm" data-type="expense">
+              <div class="panel-heading"><div><h2 id="expenseFormTitle">Add Expense</h2><p>Receipt is optional.</p></div></div>
+              <input name="id" type="hidden" />
+              <label>Amount *<div class="money-input"><span>$</span><input name="amount" type="number" min=".01" step=".01" inputmode="decimal" required /></div></label>
+              <label>Category *<select name="category" required><option value="">Choose category</option><option value="salary">Salary</option><option value="product purchase">Product purchase</option><option value="bread">Bread</option><option value="cookies and sweet">Cookies and Sweet</option><option value="injera">Injera</option><option value="rent">Rent</option><option value="utilities">Utilities</option><option value="transportation">Transportation</option><option value="maintenance">Maintenance</option><option value="tax">Tax</option><option value="other">Other</option></select></label>
+              <label>Date *<input name="entryDate" type="date" required /></label>
+              <label>Notes<textarea name="notes" maxlength="500" rows="3" placeholder="Optional detail"></textarea></label>
+              <label class="receipt-label">Receipt <small>JPG, PNG, WebP, or PDF — max 1.8 MB</small><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /><span class="receipt-name"></span></label>
+              <div class="form-actions"><button class="primary-action expense-button" type="submit">Save Expense</button><button class="secondary-action cancel-edit" type="button" hidden>Cancel</button></div>
+              <p class="form-status" role="status"></p>
+            </form>
+            <section class="panel entries-panel">
+              <div class="panel-heading"><div><h2>Expense Entries</h2><p id="expenseCount">0 entries</p></div><input class="search" data-search="expense" placeholder="Search…" /></div>
+              <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Notes</th><th>Receipt</th><th>Amount</th><th></th></tr></thead><tbody id="expenseRows"></tbody></table></div>
+              <p class="empty" id="expenseEmpty">No expense entries yet.</p>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="reportsView">
+          <div class="page-heading"><div><p class="eyebrow">Performance</p><h1>Reports</h1><p>Revenue, expenses, and profit—automatically calculated.</p></div></div>
+          <div class="report-tabs"><button class="active" data-report="daily" type="button">Daily</button><button data-report="weekly" type="button">Weekly</button><button data-report="monthly" type="button">Monthly</button></div>
+          <section class="panel chart-panel">
+            <div class="panel-heading"><div><h2 id="chartTitle">Last 14 Days</h2><p>Compare revenue, expenses, and profit</p></div><div class="legend"><span class="rev">Revenue</span><span class="exp">Expenses</span><span class="pro">Profit</span></div></div>
+            <div class="chart" id="reportChart" aria-label="Financial report chart"></div>
+          </section>
+          <section class="summary-grid report-summary">
+            <article class="summary-card revenue"><span>Report Revenue</span><strong id="reportRevenue">$0.00</strong></article>
+            <article class="summary-card expense"><span>Report Expenses</span><strong id="reportExpenses">$0.00</strong></article>
+            <article class="summary-card profit"><span>Report Profit</span><strong id="reportProfit">$0.00</strong></article>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="confirmDialog"><div class="dialog-body"><h2>Delete this entry?</h2><p>This action cannot be undone.</p><div class="form-actions"><button class="danger-action" id="confirmDelete" type="button">Delete</button><button class="secondary-action" id="cancelDelete" type="button">Cancel</button></div></div></dialog>
+    <dialog id="clearAllDialog">
+      <div class="dialog-body">
+        <h2>Clear all finance data?</h2>
+        <p>This permanently deletes every revenue and expense entry for this store. Type <strong>CLEAR ALL</strong> to confirm.</p>
+        <label class="confirm-label">Confirmation<input id="clearAllConfirmation" autocomplete="off" placeholder="CLEAR ALL" /></label>
+        <p class="form-status" id="clearAllStatus" role="status"></p>
+        <div class="form-actions">
+          <button class="danger-action" id="confirmClearAll" type="button" disabled>Clear Everything</button>
+          <button class="secondary-action" id="cancelClearAll" type="button">Cancel</button>
+        </div>
+      </div>
+    </dialog>
+    <script src="finance-dashboard.js?v=20260729-owner-pin"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

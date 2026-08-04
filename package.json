@@ -1,0 +1,19 @@
+﻿{
+  "name": "customer-credit-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Customer credit ledger with a MySQL backend.",
+  "main": "server.js",
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check order-notification-service.js && node --check order-workflow.js && node --check app.js && node --check barcode-printer.js && node --check create-order.js && node --check meat-orders.js && node --check completed-orders.js && node --check finance-dashboard.js && node --check scripts/hash-password.js && node --check scripts/create-enterprise.js && node --check scripts/restore-cloud-backup.js",
+    "test": "node --test test/*.test.js",
+    "hash-password": "node scripts/hash-password.js",
+    "restore-cloud-backup": "node scripts/restore-cloud-backup.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1080.0",
+    "mysql2": "^3.11.5"
+  }
+}

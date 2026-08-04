@@ -1,0 +1,37 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - mysql
+    ports:
+      - "5500:5500"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5500
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:5500}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: credit_user
+      DB_PASSWORD: ${DB_PASSWORD:-change-this-db-password}
+      DB_NAME: customer_credit
+      DB_AUTO_CREATE: "false"
+      STORE_NAME: ${STORE_NAME:-Main Store}
+      STORE_PASSWORD_HASH: ${STORE_PASSWORD_HASH}
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-session-secret}
+      SESSION_HOURS: 12
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: customer_credit
+      MYSQL_USER: credit_user
+      MYSQL_PASSWORD: ${DB_PASSWORD:-change-this-db-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-this-root-password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

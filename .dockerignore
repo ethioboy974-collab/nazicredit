@@ -1,0 +1,12 @@
+﻿node_modules
+.env
+.git
+*.log
+.chrome-dump-profile
+migration-backup
+tools
+.agents
+.codex
+outputs
+.railway
+coverage

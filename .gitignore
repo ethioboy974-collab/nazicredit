@@ -1,0 +1,13 @@
+﻿.env
+node_modules/
+*.log
+.chrome-dump-profile/
+.pnpm-store/
+.railway-cli-temp/
+tools/
+migration-backup/
+outputs/
+.agents/
+.codex/
+.railway/
+coverage/

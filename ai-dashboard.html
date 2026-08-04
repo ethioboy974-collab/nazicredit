@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI Business Dashboard | NaziCredit</title>
+  <link rel="stylesheet" href="ai-dashboard.css?v=20260729">
+</head>
+<body>
+  <header class="topbar">
+    <div><p class="eyebrow">Owner only</p><h1>AI Business Dashboard</h1><p id="asOf">Loading live store data…</p></div>
+    <nav><a href="index.html">Customer Credit</a><a href="finance-dashboard.html">Income</a><a href="meat-orders.html">Orders</a></nav>
+  </header>
+  <main>
+    <section class="metric-grid" id="metrics" aria-label="Business metrics"></section>
+    <section class="chart-grid">
+      <article class="panel"><div class="panel-head"><div><p class="eyebrow">Last 7 days</p><h2>Daily sales</h2></div></div><div class="chart" id="dailyChart"></div></article>
+      <article class="panel"><div class="panel-head"><div><p class="eyebrow">Last 8 weeks</p><h2>Weekly sales</h2></div></div><div class="chart" id="weeklyChart"></div></article>
+    </section>
+    <section class="work-grid">
+      <article class="panel ai-summary">
+        <div class="panel-head"><div><p class="eyebrow">Owner insight</p><h2>AI Business Summary</h2></div><div><button data-language="English">English</button><button data-language="Amharic">አማርኛ</button></div></div>
+        <div class="ai-output" id="summary">Choose a language to generate a summary.</div>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">Database answers only</p><h2>Ask Store AI</h2>
+        <div class="suggestions"><button data-question="Which vendors have not been paid?">Unpaid vendors</button><button data-question="How many orders are due today?">Orders due today</button><button data-question="Which products are almost out of stock?">Low stock</button></div>
+        <form id="askForm"><textarea id="question" rows="3" placeholder="Ask about your store…" required></textarea><button class="primary">Ask AI</button></form>
+        <div class="ai-output" id="answer" aria-live="polite"></div>
+      </article>
+    </section>
+    <section class="panel voice-panel">
+      <div class="panel-head"><div><p class="eyebrow">English • Amharic • Mixed</p><h2>Voice Assistant</h2><p>AI prepares a draft. Nothing is saved until you review and confirm.</p></div></div>
+      <div class="voice-controls">
+        <select id="commandContext"><option value="vendor">Vendor receiving</option><option value="order">Customer order</option><option value="barcode">Barcode printing</option></select>
+        <button class="mic" id="micButton" type="button">🎙 Start recording</button>
+      </div>
+      <textarea id="command" rows="3" placeholder='Try: “Customer John ordered 10 pounds of beef for Saturday at 11 AM.”'></textarea>
+      <button class="primary" id="understandButton" type="button">Understand command</button>
+      <section class="draft" id="draftPanel" hidden>
+        <p class="eyebrow">I understood the following</p><div id="draftFields"></div>
+        <div class="draft-actions"><button id="cancelDraft" type="button">Cancel</button><button class="primary" id="confirmDraft" type="button">Confirm and open form</button></div>
+      </section>
+      <p class="status" id="voiceStatus" aria-live="polite"></p>
+    </section>
+    <section class="list-grid">
+      <article class="panel"><h2>Low-stock products</h2><div id="lowStock"></div></article>
+      <article class="panel"><h2>Recently added products</h2><div id="recentProducts"></div></article>
+    </section>
+  </main>
+  <script src="ai-dashboard.js?v=20260729"></script>
+  <script src="session-guard.js"></script>
+</body>
+</html>

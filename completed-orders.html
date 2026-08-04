@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Order History | NaziCredit</title>
+    <link rel="stylesheet" href="meat-orders.css?v=20260802-order-notifications" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Customer Orders</p>
+          <h1>Order History</h1>
+          <p class="subtitle">Review picked-up orders with their original details and notification record.</p>
+        </div>
+        <nav class="topbar-actions" aria-label="Order navigation">
+          <a class="toolbar-button" href="meat-orders.html">Active Orders</a>
+          <a class="toolbar-button" href="index.html">Credit</a>
+          <button class="toolbar-button" id="refreshButton" type="button">Refresh</button>
+        </nav>
+      </header>
+
+      <section class="panel completed-panel">
+        <div class="panel-heading">
+          <div><p class="step">Order archive</p><h2>Picked Up <span class="count" id="completedCount">0</span></h2></div>
+          <p class="helper">Orders are never deleted.</p>
+        </div>
+        <div class="search-grid" role="search">
+          <label>Customer name<input id="nameSearch" type="search" placeholder="Search name" /></label>
+          <label>Phone<input id="phoneSearch" type="search" placeholder="Search phone" /></label>
+          <label>Pickup date<input id="dateSearch" type="date" /></label>
+          <button class="toolbar-button clear-search-button" id="clearSearchButton" type="button">Clear Search</button>
+        </div>
+        <p class="form-message" id="pageMessage" role="status"></p>
+        <div class="order-table-wrap">
+          <table class="order-sheet completed-sheet">
+            <thead>
+              <tr>
+                <th>#</th><th>Customer</th><th>Phone</th><th>Order details</th>
+                <th>Pickup</th><th>Picked up</th><th>Handled by</th><th>Notification</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="completedOrders"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="completedEmpty">No picked-up orders found.</p>
+      </section>
+    </main>
+    <script src="completed-orders.js?v=20260802-order-notifications"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

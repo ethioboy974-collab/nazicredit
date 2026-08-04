@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Products &amp; Barcodes | NaziCredit</title>
+    <link rel="stylesheet" href="barcode-printer.css?v=20260726-5" />
+    <link rel="stylesheet" href="polish.css?v=20260722" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Inventory Tools</p>
+          <h1>Products &amp; Barcodes</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="toolbar-button" href="index.html">Credit</a>
+          <a class="toolbar-button" href="quick-barcode.html">Name Labels</a>
+          <a class="toolbar-button" href="vendor-tracking.html">Vendors</a>
+          <a class="toolbar-button" href="meat-orders.html">Order</a>
+          <a class="toolbar-button" id="financeLink" href="finance-dashboard.html">Income</a>
+          <a class="toolbar-button" href="admin.html">Admin</a>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <div class="sidebar-stack">
+          <form class="panel label-form" id="productForm">
+            <div class="panel-heading">
+              <div>
+                <h2>Add Product</h2>
+                <p id="productCount">0 products saved</p>
+              </div>
+            </div>
+
+            <label>
+              Product name
+              <input id="productName" autocomplete="off" required />
+            </label>
+
+            <label>
+              Price
+              <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+            </label>
+
+            <div class="quantity-block">
+              <label for="labelQuantity">Quantity</label>
+              <div class="quantity-stepper">
+                <button class="stepper-button" type="button" data-step-quantity="-1" aria-label="Decrease quantity">-</button>
+                <input id="labelQuantity" type="number" min="1" max="30" step="1" value="1" required />
+                <button class="stepper-button" type="button" data-step-quantity="1" aria-label="Increase quantity">+</button>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">Save + Add Labels</button>
+              <button class="ghost-button" id="saveOnlyButton" type="button">Save Only</button>
+            </div>
+          </form>
+
+          <section class="panel product-panel" aria-labelledby="productsHeading">
+            <div class="panel-heading">
+              <div>
+                <h2 id="productsHeading">Saved Products</h2>
+                <p>Newest and recently updated products appear first.</p>
+              </div>
+            </div>
+            <div class="saved-product-search">
+              <input id="savedProductSearch" type="search" autocomplete="off" placeholder="Search name, barcode, or product number" aria-label="Search saved products" />
+              <button id="clearProductSearch" type="button" aria-label="Clear saved product search">Clear</button>
+            </div>
+            <div class="product-list" id="productList"></div>
+            <div class="mini-empty" id="productEmpty">No saved products yet</div>
+          </section>
+        </div>
+
+        <section class="panel preview-panel" aria-labelledby="previewHeading">
+          <section class="quick-label-tools" aria-labelledby="quickToolsHeading">
+            <div class="quick-tools-heading">
+              <div>
+                <h2 id="quickToolsHeading">Choose Products to Print</h2>
+                <p>Products are numbered line by line in the saved-products list.</p>
+              </div>
+              <button class="ghost-button" id="loadProductsButton" type="button">Load 500</button>
+            </div>
+
+            <div class="quick-price-row">
+              <label class="product-picker">
+                Product name or number
+                <input id="quickProductSearch" list="quickProductOptions" autocomplete="off" placeholder="Search saved products" />
+                <datalist id="quickProductOptions"></datalist>
+              </label>
+              <label>
+                New price
+                <input id="quickNewPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="New price" />
+              </label>
+              <button class="primary-button" id="changePriceButton" type="button">Change</button>
+            </div>
+
+            <p class="quick-help">To print specific products, type their numbers separated by commas. Repeat a number to print more than one label.</p>
+            <div class="quick-show-row">
+              <input id="productNumbers" aria-label="Product reference numbers" inputmode="numeric" placeholder="Example: 1, 1, 8" />
+              <button class="primary-button" id="showProductsButton" type="button">Show</button>
+              <button class="ghost-button" id="randomProductsButton" type="button">Random 30</button>
+              <button class="ghost-button" id="allProductsButton" type="button">All</button>
+              <button class="ghost-button" id="updatePreviewButton" type="button">Update</button>
+            </div>
+            <p class="quick-status" id="quickStatus" role="status">Choose products to prepare labels.</p>
+          </section>
+
+          <div class="panel-heading preview-heading">
+            <div>
+              <h2 id="previewHeading">OL875WX Sheet</h2>
+              <p id="labelCount">0 labels ready</p>
+              <p class="barcode-warning" id="barcodeWarning" hidden>This barcode is very long; use a shorter internal code for best scanning.</p>
+            </div>
+            <div class="print-actions">
+              <label class="clear-after-print">
+                <input id="clearAfterPrint" type="checkbox" checked />
+                Clear sheet after printing
+              </label>
+              <button class="ghost-button danger-button" id="clearLabelsButton" type="button">Clear All</button>
+              <button class="ghost-button" id="downloadPdfButton" type="button">Download PDF</button>
+              <button class="primary-button" id="printButton" type="button" title="Print at 100% scale">Print Labels</button>
+            </div>
+          </div>
+
+          <div class="sheet-scroll">
+            <div class="sheet-stack" id="labelSheet"></div>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <strong>No labels yet</strong>
+            <span>Add a product or choose saved product numbers to prepare the OL875WX sheet.</span>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <template id="labelTemplate">
+      <article class="price-label">
+        <button class="remove-label" type="button" title="Remove label" aria-label="Remove label">x</button>
+        <img class="label-brand-logo" src="ncf-logo-no-barcode.png" alt="" />
+        <strong class="label-name"></strong>
+        <span class="label-price"></span>
+        <div class="barcode-wrap"></div>
+        <span class="label-code"></span>
+      </article>
+    </template>
+
+    <div class="quick-print-dock" id="quickPrintDock">
+      <div>
+        <strong id="dockLabelCount">0 labels</strong>
+        <span>Ready to print</span>
+      </div>
+      <button class="dock-clear-button" id="dockClearButton" type="button">Clear</button>
+      <button class="dock-print-button" id="dockPrintButton" type="button">Print Now</button>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script src="barcode-printer.js?v=20260729-roles"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>

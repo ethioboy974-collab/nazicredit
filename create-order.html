@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Create Order | NaziCredit</title>
+    <link rel="stylesheet" href="meat-orders.css?v=20260731-products-one-box" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div><p class="eyebrow">Customer Orders</p><h1>Create Order</h1><p class="subtitle">Enter the complete pickup order.</p></div>
+        <nav class="topbar-actions" aria-label="Order navigation">
+          <a class="toolbar-button" href="meat-orders.html">Active Orders</a>
+          <a class="toolbar-button" href="completed-orders.html">Completed Orders</a>
+        </nav>
+      </header>
+      <form class="panel standalone-order-form" id="orderForm">
+        <div class="panel-heading"><div><p class="step">New order</p><h2>Customer and pickup details</h2></div><span class="required-note">* Required</span></div>
+        <div class="form-grid">
+          <label>Customer name *<input name="customerName" maxlength="160" autocomplete="name" required autofocus /></label>
+          <label>Phone number *<input name="customerPhone" maxlength="60" inputmode="tel" autocomplete="tel" required /></label>
+          <section class="wide product-section" aria-labelledby="productsHeading">
+            <div class="product-section-heading"><div><h3 id="productsHeading">Products</h3><p>Add every product to this same order.</p></div></div>
+            <div class="product-rows" id="productRows"></div>
+          </section>
+          <label class="wide">General order notes<textarea name="preparationInstructions" maxlength="500" rows="4" placeholder="Notes that apply to the whole order…"></textarea></label>
+          <label>Pickup date *<input name="pickupDate" type="date" required /></label>
+          <label>Pickup time *<input name="pickupTime" type="time" required /></label>
+          <label class="wide">Employee who took the order *<input name="employeeName" maxlength="160" autocomplete="name" required /></label>
+        </div>
+        <datalist id="meatTypes"><option value="Beef"></option><option value="Lamb"></option><option value="Goat"></option><option value="Chicken"></option></datalist>
+        <div class="form-actions">
+          <a class="toolbar-button" href="meat-orders.html">Cancel</a>
+          <button class="primary-button compact-button" id="saveButton" type="submit">Save and View Order</button>
+        </div>
+        <p class="form-message" id="formMessage" role="status"></p>
+      </form>
+    </main>
+    <script src="create-order.js?v=20260731-inline-product-add"></script>
+    <script src="session-guard.js"></script>
+  </body>
+</html>
