@@ -475,13 +475,13 @@ function renderDashboard() {
 
   const recent = [...monthEntries]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 7)
+    .slice(0, 4)
     .map((entry) => {
       const vendor = findVendor(entry.vendorId);
       return `
         <div class="activity-item">
           <strong>${escapeHtml(actionLabel(entry.type))}: ${escapeHtml(entry.product)}</strong>
-          <span>${escapeHtml(vendor.name)} - ${entry.quantity} ${escapeHtml(entry.unit)} - ${formatDate(entry.date)}</span>
+          <span>${escapeHtml(vendor.name)} | ${formatQty(entry.quantity)} ${escapeHtml(entry.unit)} | ${formatDate(entry.date)}</span>
         </div>
       `;
     })

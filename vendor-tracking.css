@@ -295,7 +295,7 @@ label,
 }
 
 .metric {
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .metric p {
@@ -306,8 +306,8 @@ label,
 
 .metric strong {
   display: block;
-  margin-top: 8px;
-  font-size: 1.45rem;
+  margin-top: 6px;
+  font-size: 1.32rem;
 }
 
 .content-grid {
@@ -329,7 +329,49 @@ label,
 }
 
 .history-panel {
-  margin-top: 18px;
+  margin-top: 14px;
+}
+
+.dashboard-grid {
+  gap: 14px;
+}
+
+.dashboard-panel .panel-heading,
+.compact-heading {
+  padding: 14px 16px 10px;
+}
+
+.dashboard-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.dashboard-panel th,
+.dashboard-panel td {
+  padding: 10px 16px;
+}
+
+.dashboard-details summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.dashboard-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.details-toggle {
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.details-toggle::after {
+  content: "Show";
+}
+
+.dashboard-details[open] .details-toggle::after {
+  content: "Hide";
 }
 
 .panel {
@@ -574,6 +616,11 @@ td {
   padding: 0 18px 18px;
 }
 
+.compact-activity {
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
 .vendor-list[hidden] {
   display: none !important;
 }
@@ -586,6 +633,10 @@ td {
   border-radius: 8px;
   padding: 12px;
   background: #fbfdfb;
+}
+
+.compact-activity .activity-item {
+  padding: 10px 12px;
 }
 
 .activity-item strong,

@@ -92,13 +92,13 @@
         </section>
 
         <section class="view active" id="dashboard">
-          <div class="metric-grid">
+          <div class="metric-grid dashboard-metrics">
             <article class="metric">
-              <p>Total received</p>
+              <p>Received</p>
               <strong id="metricReceived">$0</strong>
             </article>
             <article class="metric">
-              <p>Spoiled value</p>
+              <p>Deductions</p>
               <strong id="metricSpoiled">$0</strong>
             </article>
             <article class="metric">
@@ -106,17 +106,20 @@
               <strong id="metricPayable">$0</strong>
             </article>
             <article class="metric">
-              <p>Open vendors</p>
+              <p>Vendors</p>
               <strong id="metricVendors">0</strong>
             </article>
           </div>
 
-          <div class="content-grid">
-            <section class="panel">
-              <div class="panel-heading">
-                <h3>Vendor balances</h3>
+          <div class="content-grid dashboard-grid">
+            <section class="panel dashboard-panel">
+              <div class="panel-heading compact-heading">
+                <div>
+                  <h3>Vendor balances</h3>
+                  <p>This month</p>
+                </div>
               </div>
-              <div class="table-wrap">
+              <div class="table-wrap dashboard-table-wrap">
                 <table>
                   <thead>
                     <tr>
@@ -131,19 +134,22 @@
               </div>
             </section>
 
-            <section class="panel">
-              <div class="panel-heading">
+            <section class="panel dashboard-panel">
+              <div class="panel-heading compact-heading">
                 <h3>Recent activity</h3>
               </div>
-              <div class="activity-list" id="activityList"></div>
+              <div class="activity-list compact-activity" id="activityList"></div>
             </section>
           </div>
 
-          <section class="panel history-panel">
-            <div class="panel-heading">
-              <h3>Saved history</h3>
-              <p>All records across every month</p>
-            </div>
+          <details class="panel history-panel dashboard-details">
+            <summary class="panel-heading compact-heading">
+              <div>
+                <h3>Saved history</h3>
+                <p>All records across every month</p>
+              </div>
+              <span class="details-toggle" aria-hidden="true"></span>
+            </summary>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -162,7 +168,7 @@
                 <tbody id="historyRows"></tbody>
               </table>
             </div>
-          </section>
+          </details>
         </section>
 
         <section class="view" id="receive">
