@@ -1820,6 +1820,7 @@ async function ensureSchema() {
       quantity INT NOT NULL DEFAULT 1,
       received_quantity INT NOT NULL DEFAULT 0,
       spoiled_quantity INT NOT NULL DEFAULT 0,
+      returned_quantity INT NOT NULL DEFAULT 0,
       phone VARCHAR(60) NULL,
       reference VARCHAR(120) NULL,
       amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -1849,6 +1850,11 @@ async function ensureSchema() {
     "customer_credit_vendor_tracking",
     "spoiled_quantity",
     "INT NOT NULL DEFAULT 0 AFTER received_quantity",
+  );
+  await addColumnIfMissing(
+    "customer_credit_vendor_tracking",
+    "returned_quantity",
+    "INT NOT NULL DEFAULT 0 AFTER spoiled_quantity",
   );
 
   await pool.query(`
@@ -3038,6 +3044,7 @@ async function listVendors(enterpriseId) {
       quantity,
       received_quantity AS receivedQuantity,
       spoiled_quantity AS spoiledQuantity,
+      returned_quantity AS returnedQuantity,
       phone,
       reference,
       amount,
@@ -3058,6 +3065,7 @@ async function listVendors(enterpriseId) {
     quantity: validVendorQuantity(vendor.quantity),
     receivedQuantity: validVendorCount(vendor.receivedQuantity),
     spoiledQuantity: validVendorCount(vendor.spoiledQuantity),
+    returnedQuantity: validVendorCount(vendor.returnedQuantity),
     phone: vendor.phone || "",
     reference: vendor.reference || "",
     amount: Number(vendor.amount || 0),
@@ -3404,14 +3412,15 @@ async function upsertVendor(enterpriseId, vendor) {
   await pool.query(
     `
       INSERT INTO customer_credit_vendor_tracking
-        (id, enterprise_id, vendor_name, contact_name, quantity, received_quantity, spoiled_quantity, phone, reference, amount, due_date, status, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, enterprise_id, vendor_name, contact_name, quantity, received_quantity, spoiled_quantity, returned_quantity, phone, reference, amount, due_date, status, note, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         vendor_name = VALUES(vendor_name),
         contact_name = VALUES(contact_name),
         quantity = VALUES(quantity),
         received_quantity = VALUES(received_quantity),
         spoiled_quantity = VALUES(spoiled_quantity),
+        returned_quantity = VALUES(returned_quantity),
         phone = VALUES(phone),
         reference = VALUES(reference),
         amount = VALUES(amount),
@@ -3428,6 +3437,7 @@ async function upsertVendor(enterpriseId, vendor) {
       vendor.quantity,
       vendor.receivedQuantity,
       vendor.spoiledQuantity,
+      vendor.returnedQuantity,
       vendor.phone || null,
       vendor.reference || null,
       vendor.amount,
@@ -3448,6 +3458,7 @@ async function upsertVendor(enterpriseId, vendor) {
         quantity,
         received_quantity AS receivedQuantity,
         spoiled_quantity AS spoiledQuantity,
+        returned_quantity AS returnedQuantity,
         phone,
         reference,
         amount,
@@ -3470,6 +3481,7 @@ async function upsertVendor(enterpriseId, vendor) {
     quantity: validVendorQuantity(saved.quantity),
     receivedQuantity: validVendorCount(saved.receivedQuantity),
     spoiledQuantity: validVendorCount(saved.spoiledQuantity),
+    returnedQuantity: validVendorCount(saved.returnedQuantity),
     phone: saved.phone || "",
     reference: saved.reference || "",
     amount: Number(saved.amount || 0),
@@ -3796,17 +3808,23 @@ function normalizeProduct(product) {
 
 function normalizeVendorEntry(vendor) {
   const now = new Date().toISOString();
-  const requestedReceivedQuantity = validVendorCount(vendor.receivedQuantity ?? vendor.received);
-  const requestedSpoiledQuantity = validVendorCount(vendor.spoiledQuantity ?? vendor.spoiled);
-  const derivedQuantity = Math.max(1, requestedReceivedQuantity, requestedSpoiledQuantity);
+  const hasReceivedQuantity = vendor.receivedQuantity !== undefined || vendor.received !== undefined;
+  const hasSpoiledQuantity = vendor.spoiledQuantity !== undefined || vendor.spoiled !== undefined;
+  const hasReturnedQuantity = vendor.returnedQuantity !== undefined || vendor.returned !== undefined;
+  const requestedReceivedQuantity = hasReceivedQuantity ? validVendorCount(vendor.receivedQuantity ?? vendor.received) : 0;
+  const requestedSpoiledQuantity = hasSpoiledQuantity ? validVendorCount(vendor.spoiledQuantity ?? vendor.spoiled) : 0;
+  const requestedReturnedQuantity = hasReturnedQuantity ? validVendorCount(vendor.returnedQuantity ?? vendor.returned) : 0;
+  const hasDirectionalQuantity = hasReceivedQuantity || hasSpoiledQuantity || hasReturnedQuantity;
+  const derivedQuantity = Math.max(1, requestedReceivedQuantity, requestedSpoiledQuantity, requestedReturnedQuantity);
   const quantity =
     vendor.quantity === undefined || vendor.quantity === null || String(vendor.quantity).trim() === ""
       ? derivedQuantity
       : validVendorQuantity(vendor.quantity);
   const spoiledQuantity = Math.min(quantity, requestedSpoiledQuantity);
+  const returnedQuantity = Math.min(quantity, requestedReturnedQuantity);
   const receivedQuantity = Math.min(
     quantity,
-    Math.max(requestedReceivedQuantity, spoiledQuantity),
+    hasDirectionalQuantity ? requestedReceivedQuantity : quantity,
   );
   return {
     id: requiredString(vendor.id || cryptoRandomId(), "Vendor id"),
@@ -3815,6 +3833,7 @@ function normalizeVendorEntry(vendor) {
     quantity,
     receivedQuantity,
     spoiledQuantity,
+    returnedQuantity,
     phone: String(vendor.phone || "").trim().slice(0, 60),
     reference: String(vendor.reference || "").trim().slice(0, 120),
     amount: validAmount(vendor.price ?? vendor.amount),

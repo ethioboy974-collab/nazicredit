@@ -47,6 +47,7 @@ const elements = {
   statementRows: document.querySelector("#statementRows"),
   statementHeadingVendor: document.querySelector("#statementHeadingVendor"),
   statementHeadingProduct: document.querySelector("#statementHeadingProduct"),
+  quantitySummary: document.querySelector("#quantitySummary"),
   selectAllStatementRows: document.querySelector("#selectAllStatementRows"),
   paySelectedRows: document.querySelector("#paySelectedRows"),
   printPaidReport: document.querySelector("#printPaidReport"),
@@ -160,8 +161,10 @@ async function loadDatabaseState() {
     };
     const received = Number(delivery.receivedQuantity || 0);
     const spoiled = Number(delivery.spoiledQuantity || 0);
+    const returned = Number(delivery.returnedQuantity || 0);
     if (received > 0) entries.push({ ...base, id: `${delivery.id}-received`, type: "DELIVERED", quantity: received });
     if (spoiled > 0) entries.push({ ...base, id: `${delivery.id}-spoiled`, type: "SPOILED", quantity: spoiled });
+    if (returned > 0) entries.push({ ...base, id: `${delivery.id}-returned`, type: "RETURNED", quantity: returned });
   }
   state.vendors = [...vendorMap.values()];
   state.entries = entries;
@@ -177,8 +180,10 @@ async function syncEntryToDatabase(entry) {
     body: JSON.stringify({
       id: entry.databaseId || undefined,
       vendorName: findVendor(entry.vendorId).name,
-      receivedQuantity: entry.type === "DELIVERED" ? entry.quantity : entry.quantity,
+      quantity: entry.quantity,
+      receivedQuantity: entry.type === "DELIVERED" ? entry.quantity : 0,
       spoiledQuantity: entry.type === "SPOILED" ? entry.quantity : 0,
+      returnedQuantity: entry.type === "RETURNED" ? entry.quantity : 0,
       reference: entry.product,
       amount: entry.unitPrice,
       status: "due",
@@ -676,11 +681,14 @@ function renderStatement() {
     : "No statement records for this month.";
   elements.statementEmpty.hidden = hasResults;
   elements.statementTableWrap.hidden = !hasResults;
+  elements.quantitySummary.hidden = !hasResults;
   elements.statementTotalBar.hidden = !hasResults;
   elements.paymentBar.hidden = !hasResults;
   document.querySelector("#statementSubtext").textContent = searchText
     ? `Search results for "${elements.statementSearch.value.trim()}"`
     : "All vendors - each saved record shown separately.";
+
+  elements.quantitySummary.innerHTML = buildQuantitySummary(statementEntries);
 
   elements.statementRows.innerHTML = [...statementEntries]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -708,7 +716,8 @@ function renderStatement() {
           <span>${formatCreatedTime(entry.createdAt)}</span>
         </td>
         <td data-label="Type">${escapeHtml(actionLabel(entry.type))}</td>
-        <td data-label="Quantity"><strong>${formatQty(quantity)} ${escapeHtml(entry.unit)}</strong></td>
+        <td data-label="Product"><strong>${escapeHtml(entry.product)}</strong></td>
+        <td data-label="Recorded quantity"><strong>${formatQty(quantity)} ${escapeHtml(entry.unit)}</strong></td>
         <td data-label="Unit price">${money.format(unitPrice)}</td>
         <td data-label="Amount" class="${amount < 0 ? "amount-warning" : "amount-positive"}">${money.format(amount)}</td>
         <td data-label="Status"><span class="status-pill ${payment ? "paid" : "unpaid"}">${paymentStatus}</span></td>
@@ -718,7 +727,7 @@ function renderStatement() {
       </tr>
       `;
     })
-    .join("") || emptyRow("No statement activity for this selection.", 9);
+    .join("") || emptyRow("No statement activity for this selection.", 10);
 
   const totals = calculateTotals(statementEntries);
   const statementVendorNames = [...new Set(statementEntries.map((entry) => findVendor(entry.vendorId)?.name).filter(Boolean))];
@@ -956,7 +965,7 @@ function printSelectedPaidReport() {
       .meta span{font-size:14px}.paid{color:#17633a;font-weight:800}
       table{width:100%;border-collapse:collapse;font-size:13px}
       th,td{border:1px solid #9eaaa2;padding:9px;text-align:left}
-      th{background:#e8f0ea}.total{margin-top:18px;text-align:right;font-size:20px;font-weight:800}
+      th{background:#e8f0ea}.quantity-report{margin:0 0 20px}.quantity-report h2{font-size:16px;margin:0 0 8px}.total{margin-top:18px;text-align:right;font-size:20px;font-weight:800}
       .footer{margin-top:30px;border-top:1px solid #ccd4ce;padding-top:12px;font-size:12px;color:#66736a}
       @media print{body{margin:14mm}.no-print{display:none}}
     </style></head><body>
@@ -967,6 +976,7 @@ function printSelectedPaidReport() {
       <span><strong>Paid date:</strong> ${escapeHtml(formatDate(payment.date))}</span>
       <span class="paid">STATUS: PAID</span>
     </div>
+    ${buildPrintQuantitySummary(reportEntries)}
     <table><thead><tr><th>#</th><th>Date & time</th><th>Product</th><th>Type</th><th>Quantity</th><th>Unit price</th><th>Amount</th></tr></thead>
     <tbody>${reportRows}</tbody></table>
     <div class="total">Total paid: ${escapeHtml(money.format(calculateTotals(reportEntries).payableValue))}</div>
@@ -1108,7 +1118,7 @@ function exportStatementCsv() {
     return;
   }
 
-  const rows = [["Vendor", "Date", "Time Created", "Product", "Received", "Spoiled", "Payable Quantity", "Unit", "Amount"]];
+  const rows = [["Vendor", "Date", "Time Created", "Product", "Received", "Spoiled", "Returned", "Payable Quantity", "Unit", "Amount"]];
 
   [...monthEntries].sort((a, b) => a.date.localeCompare(b.date)).forEach((entry) => {
     const vendor = findVendor(entry.vendorId);
@@ -1120,6 +1130,7 @@ function exportStatementCsv() {
       entry.product,
       entry.type === "DELIVERED" ? entry.quantity : 0,
       entry.type === "SPOILED" ? entry.quantity : 0,
+      entry.type === "RETURNED" ? entry.quantity : 0,
       payableQty,
       entry.unit,
       (payableQty * entry.unitPrice).toFixed(2)
@@ -1164,6 +1175,53 @@ function printVendorReport(vendorId) {
   elements.statementSearch.value = vendor.name;
   renderStatement();
   window.setTimeout(() => window.print(), 50);
+}
+
+function buildQuantitySummary(entries) {
+  const summary = summarizeQuantitiesByUnit(entries);
+  if (!summary.length) return "";
+  return summary.map((row) => `
+    <article class="quantity-summary-card">
+      <span>${escapeHtml(row.unit)}</span>
+      <strong>${escapeHtml(formatQty(row.payable))}</strong>
+      <small>Payable quantity</small>
+      <dl>
+        <div><dt>Received</dt><dd>${escapeHtml(formatQty(row.received))}</dd></div>
+        <div><dt>Spoiled</dt><dd>${escapeHtml(formatQty(row.spoiled))}</dd></div>
+        <div><dt>Returned</dt><dd>${escapeHtml(formatQty(row.returned))}</dd></div>
+      </dl>
+    </article>
+  `).join("");
+}
+
+function buildPrintQuantitySummary(entries) {
+  const summary = summarizeQuantitiesByUnit(entries);
+  if (!summary.length) return "";
+  const rows = summary.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.unit)}</td>
+      <td>${escapeHtml(formatQty(row.received))}</td>
+      <td>${escapeHtml(formatQty(row.spoiled))}</td>
+      <td>${escapeHtml(formatQty(row.returned))}</td>
+      <td>${escapeHtml(formatQty(row.payable))}</td>
+    </tr>
+  `).join("");
+  return `<section class="quantity-report"><h2>Recorded quantity summary</h2><table><thead><tr><th>Unit</th><th>Received</th><th>Spoiled</th><th>Returned</th><th>Payable quantity</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function summarizeQuantitiesByUnit(entries) {
+  const totals = new Map();
+  entries.forEach((entry) => {
+    const unit = String(entry.unit || "unit").trim() || "unit";
+    if (!totals.has(unit)) totals.set(unit, { unit, received: 0, spoiled: 0, returned: 0, payable: 0 });
+    const row = totals.get(unit);
+    const quantity = Number(entry.quantity) || 0;
+    if (entry.type === "DELIVERED") row.received += quantity;
+    else if (entry.type === "SPOILED") row.spoiled += quantity;
+    else if (entry.type === "RETURNED") row.returned += quantity;
+    row.payable = row.received - row.spoiled - row.returned;
+  });
+  return [...totals.values()].sort((a, b) => a.unit.localeCompare(b.unit));
 }
 
 function entriesForActiveMonth() {

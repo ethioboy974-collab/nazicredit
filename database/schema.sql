@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS customer_credit_vendor_tracking (
   quantity INT NOT NULL DEFAULT 1,
   received_quantity INT NOT NULL DEFAULT 0,
   spoiled_quantity INT NOT NULL DEFAULT 0,
+  returned_quantity INT NOT NULL DEFAULT 0,
   phone VARCHAR(60) NULL,
   reference VARCHAR(120) NULL,
   amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
