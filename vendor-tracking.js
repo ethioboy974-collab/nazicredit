@@ -475,7 +475,7 @@ function renderDashboard() {
 
   const recent = [...monthEntries]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 4)
+    .slice(0, 3)
     .map((entry) => {
       const vendor = findVendor(entry.vendorId);
       return `
