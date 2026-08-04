@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-vendor-emails" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-clean-dashboard" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -93,6 +93,10 @@
 
         <section class="view active" id="dashboard">
           <div class="metric-grid dashboard-metrics">
+            <article class="metric primary-metric">
+              <p>Payable</p>
+              <strong id="metricPayable">$0</strong>
+            </article>
             <article class="metric">
               <p>Received</p>
               <strong id="metricReceived">$0</strong>
@@ -102,23 +106,20 @@
               <strong id="metricSpoiled">$0</strong>
             </article>
             <article class="metric">
-              <p>Payable</p>
-              <strong id="metricPayable">$0</strong>
-            </article>
-            <article class="metric">
               <p>Vendors</p>
               <strong id="metricVendors">0</strong>
             </article>
           </div>
 
           <div class="content-grid dashboard-grid">
-            <section class="panel dashboard-panel">
-              <div class="panel-heading compact-heading">
+            <details class="panel dashboard-panel dashboard-details">
+              <summary class="panel-heading compact-heading">
                 <div>
                   <h3>Vendor balances</h3>
                   <p>This month</p>
                 </div>
-              </div>
+                <span class="details-toggle" aria-hidden="true"></span>
+              </summary>
               <div class="table-wrap dashboard-table-wrap">
                 <table>
                   <thead>
@@ -132,7 +133,7 @@
                   <tbody id="vendorBalanceRows"></tbody>
                 </table>
               </div>
-            </section>
+            </details>
 
             <section class="panel dashboard-panel">
               <div class="panel-heading compact-heading">
@@ -447,7 +448,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-vendor-emails"></script>
+    <script src="vendor-tracking.js?v=20260804-clean-dashboard"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

@@ -298,6 +298,19 @@ label,
   padding: 14px 16px;
 }
 
+.dashboard-metrics {
+  grid-template-columns: minmax(190px, 1.35fr) repeat(3, minmax(0, 0.85fr));
+}
+
+.primary-metric {
+  background: #f5fbf7;
+  border-color: #b7d4c1;
+}
+
+.primary-metric strong {
+  color: var(--accent-strong);
+}
+
 .metric p {
   color: var(--muted);
   font-size: 0.84rem;
@@ -349,6 +362,10 @@ label,
 .dashboard-panel th,
 .dashboard-panel td {
   padding: 10px 16px;
+}
+
+.dashboard-details .table-wrap {
+  border-top: 1px solid var(--line);
 }
 
 .dashboard-details summary {
