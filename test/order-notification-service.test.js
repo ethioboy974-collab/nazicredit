@@ -36,6 +36,28 @@ test("passes a provider-neutral ready notification to the selected adapter", asy
   assert.equal(result.messageId, "message-123");
 });
 
+test("normalizes US customer phone numbers before sending SMS", async () => {
+  const deliveries = [];
+  const service = createOrderNotificationService({
+    provider: "test-provider",
+    providers: {
+      "test-provider": {
+        async send(notification) {
+          deliveries.push(notification);
+          return { channel: "sms", messageId: "message-456" };
+        },
+      },
+    },
+  });
+
+  await service.sendOrderReady({
+    id: "order-2",
+    customerName: "Gech",
+    customerPhone: "5714816196",
+  });
+
+  assert.equal(deliveries[0].recipient, "+15714816196");
+});
 test("accepts the built-in Twilio provider during setup", () => {
   const service = createOrderNotificationService({
     provider: "twilio",
