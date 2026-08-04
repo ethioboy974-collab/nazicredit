@@ -1,4 +1,4 @@
-﻿# GitHub and Railway Workflow
+# GitHub and Railway Workflow
 
 This project is managed from GitHub as the source of truth. Railway deploys the `customer-credit` service automatically from the `main` branch after changes are merged.
 

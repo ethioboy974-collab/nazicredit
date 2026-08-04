@@ -1,4 +1,4 @@
-﻿# Railway Deployment
+# Railway Deployment
 
 The Customer Credit website is hosted on Railway, but the deployment workflow should now be GitHub-driven instead of manually uploading local files.
 
