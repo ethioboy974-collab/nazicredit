@@ -16,7 +16,7 @@ function createOrderNotificationService(options = {}) {
       const message = `Hello ${order.customerName}, your order from NaziCredit is ready for pickup. Thank you for shopping with us.`;
       const result = await provider.send({
         channel: "sms",
-        recipient: order.customerPhone,
+        recipient: normalizeSmsRecipient(order.customerPhone),
         message,
         orderId: order.id,
       });
@@ -28,6 +28,16 @@ function createOrderNotificationService(options = {}) {
       };
     },
   };
+}
+
+function normalizeSmsRecipient(phone) {
+  const raw = String(phone || "").trim();
+  if (!raw) return raw;
+  if (raw.startsWith("+")) return `+${raw.slice(1).replace(/\D/g, "")}`;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return raw;
 }
 
 function createTwilioProvider(config) {

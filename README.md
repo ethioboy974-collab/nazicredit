@@ -1,4 +1,4 @@
-﻿# Customer Credit Ledger
+# Customer Credit Ledger
 
 Simple demo app for customer credit records.
 
