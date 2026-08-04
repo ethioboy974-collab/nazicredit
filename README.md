@@ -1,7 +1,10 @@
-# Customer Credit Ledger
+﻿# Customer Credit Ledger
 
 Simple demo app for customer credit records.
 
+## Managed Deployment Workflow
+
+This project is being moved to a GitHub-first workflow with Railway deploying automatically from the `main` branch. For the source-of-truth deployment process, required Railway variables, and future change workflow, see `GITHUB-RAILWAY-WORKFLOW.md`.
 ## Open the app
 
 Open `index.html` in a browser. It works immediately with local browser storage.
@@ -89,7 +92,7 @@ real messages, register an adapter with a `send(notification)` method and set
 `recipient`, `message`, and `orderId`, so SMS, WhatsApp, or email can be added
 without changing order routes or pages.
 
-The order workflow is enforced as Pending → Being Prepared → Ready for Pickup →
+The order workflow is enforced as Pending â†’ Being Prepared â†’ Ready for Pickup â†’
 Picked Up. Picked-up orders appear in Order History and can be restored to
 Pending. The first transition to Ready for Pickup claims and sends the
 notification once; owners and manager-level staff can explicitly resend it.
@@ -104,3 +107,4 @@ For Twilio SMS, set `ORDER_NOTIFICATION_PROVIDER=twilio`,
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either
 `TWILIO_MESSAGING_SERVICE_SID` (recommended) or `TWILIO_FROM_NUMBER`. Store
 these as Railway variables; never commit the auth token to the project.
+
