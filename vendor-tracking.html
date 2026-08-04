@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260728-statement-responsive" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-quantity-summary" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -313,6 +313,7 @@
               <p id="printReportPeriod"></p>
             </div>
             <div class="empty-state" id="statementEmpty" hidden></div>
+            <div class="quantity-summary" id="quantitySummary" hidden></div>
             <div class="table-wrap statement-sheet-wrap" id="statementTableWrap" hidden>
               <div class="statement-sheet-heading">
                 <span>Vendor: <strong id="statementHeadingVendor">All vendors</strong></span>
@@ -327,7 +328,8 @@
                     <th class="sheet-row-number" aria-label="Row number">#</th>
                     <th>Date &amp; time</th>
                     <th>Type</th>
-                    <th>Quantity</th>
+                    <th>Product</th>
+                    <th>Recorded quantity</th>
                     <th>Unit price (USD)</th>
                     <th>Amount (USD)</th>
                     <th>Status</th>
@@ -431,7 +433,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260729-roles"></script>
+    <script src="vendor-tracking.js?v=20260804-quantity-summary"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

@@ -377,6 +377,69 @@ label,
   overflow-x: auto;
 }
 
+.quantity-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin: 0 0 14px;
+}
+
+.quantity-summary[hidden] {
+  display: none !important;
+}
+
+.quantity-summary-card {
+  background: #f7faf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.quantity-summary-card span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.quantity-summary-card strong {
+  color: var(--ink);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.quantity-summary-card small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.quantity-summary-card dl {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 0;
+}
+
+.quantity-summary-card dl div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.quantity-summary-card dt,
+.quantity-summary-card dd {
+  margin: 0;
+}
+
+.quantity-summary-card dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.quantity-summary-card dd {
+  font-weight: 850;
+}
 .statement-sheet-wrap {
   max-height: min(62vh, 680px);
   border: 1px solid #b7c4bb;
@@ -384,7 +447,7 @@ label,
 }
 
 .statement-sheet {
-  min-width: 760px;
+  min-width: 900px;
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -396,7 +459,7 @@ label,
   display: flex;
   align-items: center;
   gap: 28px;
-  min-width: 760px;
+  min-width: 900px;
   padding: 12px 14px;
   border-bottom: 1px solid #b7c4bb;
   background: #dfece3;
@@ -893,6 +956,7 @@ button:disabled {
   .sidebar,
   .top-actions,
   .payment-bar,
+  .sheet-select-column,
   .statement-heading,
   .statement-action-column,
   .toast {
