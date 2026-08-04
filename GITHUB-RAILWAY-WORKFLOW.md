@@ -1,6 +1,6 @@
 ﻿# GitHub and Railway Workflow
 
-This project should be managed from GitHub as the source of truth. Railway should deploy the `customer-credit` service automatically from the `main` branch after changes are merged.
+This project is managed from GitHub as the source of truth. Railway deploys the `customer-credit` service automatically from the `main` branch after changes are merged.
 
 ## Current production deployment
 
@@ -8,16 +8,16 @@ This project should be managed from GitHub as the source of truth. Railway shoul
 - Railway project: fabulous-upliftment
 - Railway service: customer-credit
 - Railway environment: production
-- Runtime: Node.js app using the Dockerfile in this repository
+- Runtime: Node.js app built by Railway Railpack from this repository
 - Health check: /api/health
 
 ## Railway build and start configuration
 
-Railway uses `railway.json` and the Dockerfile.
+Railway uses `railway.json` and Railpack.
 
-- Builder: Dockerfile
-- Docker install command: `corepack enable && pnpm install --prod --frozen-lockfile`
-- Start command: `node server.js` from the Dockerfile CMD
+- Builder: Railpack
+- Install command: detected from `packageManager` and `pnpm-lock.yaml`
+- Start command: `pnpm start`
 - Health check path: `/api/health`
 - Health check timeout: 120 seconds
 
@@ -44,8 +44,11 @@ Required production variables verified by name in Railway production include:
 - ORDER_NOTIFICATION_PROVIDER=twilio
 - TWILIO_ACCOUNT_SID=<private Twilio Account SID>
 - TWILIO_AUTH_TOKEN=<private Twilio auth token>
-- TWILIO_FROM_NUMBER=<private Twilio SMS-capable number>\n- TWILIO_MESSAGING_SERVICE_SID=<optional, recommended when available>
-- EMAIL_FROM=Nazi Credit <security@nazicredit.com>, if email recovery is enabled\n- RESEND_API_KEY=<private Resend API key>, if email recovery is enabled\n- BACKUP_ENABLED=true
+- TWILIO_FROM_NUMBER=<private Twilio SMS-capable number>
+- TWILIO_MESSAGING_SERVICE_SID=<optional, recommended when available>
+- EMAIL_FROM=Nazi Credit <security@nazicredit.com>, if email recovery is enabled
+- RESEND_API_KEY=<private Resend API key>, if email recovery is enabled
+- BACKUP_ENABLED=true
 - BACKUP_S3_ENDPOINT=<private bucket endpoint>
 - BACKUP_S3_REGION=<private bucket region>
 - BACKUP_S3_BUCKET=<private bucket name>
@@ -54,7 +57,10 @@ Required production variables verified by name in Railway production include:
 - BACKUP_S3_FORCE_PATH_STYLE=false
 - BACKUP_INTERVAL_HOURS=24
 - BACKUP_RETENTION_DAYS=35
-- OPENAI_API_KEY=<private OpenAI API key>, if AI features are enabled\n- OPENAI_MODEL=<approved production model>, if AI features are enabled\n- OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe, if transcription is enabled\n
+- OPENAI_API_KEY=<private OpenAI API key>, if AI features are enabled
+- OPENAI_MODEL=<approved production model>, if AI features are enabled
+- OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe, if transcription is enabled
+
 ## One-time setup in Railway
 
 1. Connect the Railway `customer-credit` service to the GitHub repository.
@@ -76,4 +82,3 @@ Railway documentation: services linked to a GitHub repository automatically depl
 7. Railway automatically deploys `main` after the merge and successful checks.
 
 No manual ZIP downloads, file replacement, terminal commands, or manual Railway uploads should be needed after GitHub and Railway are connected.
-
