@@ -894,6 +894,76 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.statement-overview[hidden] {
+  display: none !important;
+}
+
+.statement-overview {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 14px;
+}
+
+.statement-overview .statement-total {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.statement-section-details {
+  background: #fbfdfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.statement-section-details[hidden],
+.statement-total[hidden] {
+  display: none !important;
+}
+
+.statement-section-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 12px 14px;
+}
+
+.statement-section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.statement-section-summary > span:first-child {
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.statement-section-summary small {
+  color: var(--muted);
+  font-weight: 750;
+  margin-left: auto;
+}
+
+.statement-section-details .quantity-summary {
+  margin: 0;
+  padding: 0 14px 14px;
+}
+
+.payment-bar.statement-section-details {
+  display: block;
+  padding: 0;
+}
+
+.payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
 .amount-positive {
   color: var(--green);
   font-weight: 800;
