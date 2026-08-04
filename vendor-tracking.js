@@ -145,7 +145,9 @@ async function loadDatabaseState() {
     const name = cleanName(delivery.vendorName || "Unknown vendor");
     const key = name.toLowerCase();
     if (!vendorMap.has(key)) {
-      vendorMap.set(key, { id: `vendor-${key}`, name, phone: delivery.phone || "", paymentMethod: "Cash" });
+      vendorMap.set(key, { id: `vendor-${key}`, name, phone: delivery.phone || "", email: delivery.email || "", paymentMethod: "Cash" });
+    } else if (!vendorMap.get(key).email && delivery.email) {
+      vendorMap.get(key).email = delivery.email;
     }
     const vendor = vendorMap.get(key);
     const base = {
@@ -153,7 +155,7 @@ async function loadDatabaseState() {
       vendorId: vendor.id,
       vendorName: name,
       product: delivery.reference || "Unspecified product",
-      unit: "piece",
+      unit: delivery.unit || "piece",
       unitPrice: Number(delivery.amount || 0),
       note: delivery.note || "",
       createdAt: delivery.createdAt || delivery.updatedAt || new Date().toISOString(),
@@ -175,12 +177,16 @@ async function loadDatabaseState() {
 }
 
 async function syncEntryToDatabase(entry) {
+  const vendor = findVendor(entry.vendorId);
   const result = await databaseRequest("/vendors", {
     method: "POST",
     body: JSON.stringify({
       id: entry.databaseId || undefined,
-      vendorName: findVendor(entry.vendorId).name,
+      vendorName: vendor.name,
+      phone: vendor.phone || "",
+      email: vendor.email || "",
       quantity: entry.quantity,
+      unit: entry.unit,
       receivedQuantity: entry.type === "DELIVERED" ? entry.quantity : 0,
       spoiledQuantity: entry.type === "SPOILED" ? entry.quantity : 0,
       returnedQuantity: entry.type === "RETURNED" ? entry.quantity : 0,
@@ -194,6 +200,25 @@ async function syncEntryToDatabase(entry) {
   });
   entry.databaseId = result.vendor?.id || entry.databaseId;
   saveState();
+  return result;
+}
+
+function showVendorEmailStatus(result) {
+  const notification = result?.notification;
+  if (!notification) return;
+  if (notification.sent) {
+    showToast(`Email sent to ${notification.email}.`);
+    return;
+  }
+  if (notification.reason === "missing_email") {
+    showToast("Record saved. Add this vendor email to send automatic emails.");
+    return;
+  }
+  if (notification.reason === "not_configured") {
+    showToast("Record saved. Email delivery is not configured yet.");
+    return;
+  }
+  showToast("Record saved. Vendor email could not be sent.");
 }
 
 function enforceMobileView() {
@@ -331,6 +356,7 @@ function bindForms() {
       id: makeId(),
       name: form.elements.name.value.trim(),
       phone: form.elements.phone.value.trim(),
+      email: cleanEmail(form.elements.email.value),
       paymentMethod: form.elements.paymentMethod.value
     };
     state.vendors.push(vendor);
@@ -378,7 +404,9 @@ function addEntryFromForm(form, type) {
   elements.activeMonth.value = state.activeMonth;
   saveState();
   render();
-  syncEntryToDatabase(entry).catch((error) => showToast(error.message));
+  syncEntryToDatabase(entry)
+    .then(showVendorEmailStatus)
+    .catch((error) => showToast(`${actionLabel(type)} saved locally. ${error.message}`));
 }
 
 function render() {
@@ -417,6 +445,7 @@ function resolveAkrabiId(form) {
     id: makeId(),
     name: cleanName(form.elements.vendorName.value),
     phone: "",
+    email: "",
     paymentMethod: "Cash"
   };
   state.vendors.push(newVendor);
@@ -565,7 +594,9 @@ function saveEditedEntry() {
   saveState();
   elements.editDialog.close();
   render();
-  syncEntryToDatabase(entry).catch((error) => showToast(error.message));
+  syncEntryToDatabase(entry)
+    .then(showVendorEmailStatus)
+    .catch((error) => showToast(`Record updated locally. ${error.message}`));
   showToast("Record updated.");
 }
 
@@ -573,7 +604,7 @@ function renderVendors() {
   const query = elements.vendorSearch.value.trim().toLocaleLowerCase();
   const visibleVendors = query
     ? state.vendors.filter((vendor) =>
-        [vendor.name, vendor.phone, vendor.paymentMethod]
+        [vendor.name, vendor.phone, vendor.email, vendor.paymentMethod]
           .some((value) => String(value || "").toLocaleLowerCase().includes(query)))
     : state.vendors;
   elements.vendorList.hidden = !vendorListOpen;
@@ -585,7 +616,7 @@ function renderVendors() {
     .map((vendor) => `
       <div class="vendor-item">
         <strong>${escapeHtml(vendor.name)}</strong>
-        <span>${escapeHtml(vendor.phone || "No phone")} - ${escapeHtml(vendor.paymentMethod)}</span>
+        <span>${escapeHtml(vendorContactLine(vendor))}</span>
         <div class="vendor-actions">
           <button class="text-action" data-print-vendor="${vendor.id}" type="button">Print report</button>
           <button class="text-action" data-edit-vendor="${vendor.id}" type="button">Edit</button>
@@ -626,6 +657,7 @@ function handleVendorAction(event) {
   form.elements.id.value = vendor.id;
   form.elements.name.value = vendor.name;
   form.elements.phone.value = vendor.phone || "";
+  form.elements.email.value = vendor.email || "";
   form.elements.paymentMethod.value = vendor.paymentMethod;
   elements.vendorDialog.showModal();
 }
@@ -664,6 +696,7 @@ function saveEditedVendor() {
 
   vendor.name = cleanName(form.elements.name.value);
   vendor.phone = form.elements.phone.value.trim();
+  vendor.email = cleanEmail(form.elements.email.value);
   vendor.paymentMethod = form.elements.paymentMethod.value;
   saveState();
   elements.vendorDialog.close();
@@ -1328,6 +1361,16 @@ function getEntryAkrabiName(entry) {
 
 function cleanName(value) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function cleanEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function vendorContactLine(vendor) {
+  return [vendor.phone || "No phone", vendor.email || "No email", vendor.paymentMethod]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 function inferUnit() {

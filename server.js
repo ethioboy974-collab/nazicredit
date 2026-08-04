@@ -1054,6 +1054,66 @@ async function sendTransactionalEmail({ to, subject, html }) {
   }
 }
 
+async function sendVendorRecordEmail(session, vendor) {
+  if (!vendor.email) return { sent: false, reason: "missing_email" };
+  if (!config.email.apiKey) return { sent: false, reason: "not_configured" };
+
+  const action = vendorRecordAction(vendor);
+  const unitPrice = Number(vendor.amount || 0);
+  const total = action.quantity * unitPrice * action.sign;
+  const product = vendor.reference || "Vendor product";
+  let statementLink = "";
+  try {
+    statementLink = config.publicOrigin
+      ? new URL("/vendor-tracking.html#statement", config.publicOrigin).toString()
+      : "";
+  } catch {}
+
+  await sendTransactionalEmail({
+    to: vendor.email,
+    subject: `${action.label} recorded: ${product}`,
+    html: `
+      <h1>Vendor record saved</h1>
+      <p>${escapeHtmlServer(session.enterpriseName || config.auth.storeName)} recorded a vendor item for <strong>${escapeHtmlServer(vendor.vendorName)}</strong>.</p>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;border:1px solid #d0d7de;width:100%;max-width:640px">
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Type</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(action.label)}</td></tr>
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Product</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(product)}</td></tr>
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Recorded quantity</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(`${formatServerQuantity(action.quantity)} ${vendor.unit || "piece"}`)}</td></tr>
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Unit price</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(formatServerMoney(unitPrice))}</td></tr>
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Record amount</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(formatServerMoney(total))}</td></tr>
+        <tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Date recorded</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(formatServerDateTime(vendor.createdAt))}</td></tr>
+        ${vendor.note ? `<tr><th align="left" style="border:1px solid #d0d7de;background:#f6f8fa">Note</th><td style="border:1px solid #d0d7de">${escapeHtmlServer(vendor.note)}</td></tr>` : ""}
+      </table>
+      ${statementLink ? `<p><a href="${escapeHtmlServer(statementLink)}">Open vendor statement</a></p>` : ""}
+      <p>This is an automatic email from NaziCredit.</p>
+    `,
+  });
+
+  return { sent: true, email: vendor.email };
+}
+
+function vendorRecordAction(vendor) {
+  if (Number(vendor.receivedQuantity) > 0) return { label: "Received", quantity: Number(vendor.receivedQuantity), sign: 1 };
+  if (Number(vendor.spoiledQuantity) > 0) return { label: "Spoiled", quantity: Number(vendor.spoiledQuantity), sign: -1 };
+  if (Number(vendor.returnedQuantity) > 0) return { label: "Returned", quantity: Number(vendor.returnedQuantity), sign: -1 };
+  return { label: "Recorded", quantity: Number(vendor.quantity || 0), sign: 1 };
+}
+
+function formatServerMoney(value) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
+}
+
+function formatServerQuantity(value) {
+  const quantity = Number(value) || 0;
+  return Number(quantity.toFixed(2)).toString();
+}
+
+function formatServerDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date().toLocaleString("en-US");
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+}
+
 function hashSecurityToken(token) {
   return crypto.createHash("sha256").update(String(token || "")).digest("hex");
 }
@@ -1394,7 +1454,14 @@ async function handleApiRequest(request, response, requestUrl, session) {
       entityId: vendor.id,
       summary: `Saved vendor ${vendor.vendorName}`,
     });
-    sendJson(response, 201, { ok: true, vendor });
+    let notification = null;
+    try {
+      notification = await sendVendorRecordEmail(session, vendor);
+    } catch (error) {
+      console.error(`Vendor record email failed: ${error.message}`);
+      notification = { sent: false, error: "Vendor email could not be sent" };
+    }
+    sendJson(response, 201, { ok: true, vendor, notification });
     return;
   }
 
@@ -1818,10 +1885,12 @@ async function ensureSchema() {
       vendor_name VARCHAR(160) NOT NULL,
       contact_name VARCHAR(160) NULL,
       quantity INT NOT NULL DEFAULT 1,
+      unit VARCHAR(40) NOT NULL DEFAULT 'piece',
       received_quantity INT NOT NULL DEFAULT 0,
       spoiled_quantity INT NOT NULL DEFAULT 0,
       returned_quantity INT NOT NULL DEFAULT 0,
       phone VARCHAR(60) NULL,
+      email VARCHAR(254) NULL,
       reference VARCHAR(120) NULL,
       amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
       due_date DATE NULL,
@@ -1843,6 +1912,11 @@ async function ensureSchema() {
   );
   await addColumnIfMissing(
     "customer_credit_vendor_tracking",
+    "unit",
+    "VARCHAR(40) NOT NULL DEFAULT 'piece' AFTER quantity",
+  );
+  await addColumnIfMissing(
+    "customer_credit_vendor_tracking",
     "received_quantity",
     "INT NOT NULL DEFAULT 0 AFTER quantity",
   );
@@ -1855,6 +1929,11 @@ async function ensureSchema() {
     "customer_credit_vendor_tracking",
     "returned_quantity",
     "INT NOT NULL DEFAULT 0 AFTER spoiled_quantity",
+  );
+  await addColumnIfMissing(
+    "customer_credit_vendor_tracking",
+    "email",
+    "VARCHAR(254) NULL AFTER phone",
   );
 
   await pool.query(`
@@ -3042,10 +3121,12 @@ async function listVendors(enterpriseId) {
       vendor_name AS vendorName,
       contact_name AS contactName,
       quantity,
+      unit,
       received_quantity AS receivedQuantity,
       spoiled_quantity AS spoiledQuantity,
       returned_quantity AS returnedQuantity,
       phone,
+      email,
       reference,
       amount,
       DATE_FORMAT(due_date, '%Y-%m-%d') AS dueDate,
@@ -3063,10 +3144,12 @@ async function listVendors(enterpriseId) {
     vendorName: vendor.vendorName,
     contactName: vendor.contactName || "",
     quantity: validVendorQuantity(vendor.quantity),
+    unit: vendor.unit || "piece",
     receivedQuantity: validVendorCount(vendor.receivedQuantity),
     spoiledQuantity: validVendorCount(vendor.spoiledQuantity),
     returnedQuantity: validVendorCount(vendor.returnedQuantity),
     phone: vendor.phone || "",
+    email: vendor.email || "",
     reference: vendor.reference || "",
     amount: Number(vendor.amount || 0),
     price: Number(vendor.amount || 0),
@@ -3412,16 +3495,18 @@ async function upsertVendor(enterpriseId, vendor) {
   await pool.query(
     `
       INSERT INTO customer_credit_vendor_tracking
-        (id, enterprise_id, vendor_name, contact_name, quantity, received_quantity, spoiled_quantity, returned_quantity, phone, reference, amount, due_date, status, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, enterprise_id, vendor_name, contact_name, quantity, unit, received_quantity, spoiled_quantity, returned_quantity, phone, email, reference, amount, due_date, status, note, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         vendor_name = VALUES(vendor_name),
         contact_name = VALUES(contact_name),
         quantity = VALUES(quantity),
+        unit = VALUES(unit),
         received_quantity = VALUES(received_quantity),
         spoiled_quantity = VALUES(spoiled_quantity),
         returned_quantity = VALUES(returned_quantity),
         phone = VALUES(phone),
+        email = VALUES(email),
         reference = VALUES(reference),
         amount = VALUES(amount),
         due_date = VALUES(due_date),
@@ -3435,10 +3520,12 @@ async function upsertVendor(enterpriseId, vendor) {
       vendor.vendorName,
       vendor.contactName || null,
       vendor.quantity,
+      vendor.unit,
       vendor.receivedQuantity,
       vendor.spoiledQuantity,
       vendor.returnedQuantity,
       vendor.phone || null,
+      vendor.email || null,
       vendor.reference || null,
       vendor.amount,
       vendor.dueDate || null,
@@ -3456,10 +3543,12 @@ async function upsertVendor(enterpriseId, vendor) {
         vendor_name AS vendorName,
         contact_name AS contactName,
         quantity,
+        unit,
         received_quantity AS receivedQuantity,
         spoiled_quantity AS spoiledQuantity,
         returned_quantity AS returnedQuantity,
         phone,
+        email,
         reference,
         amount,
         DATE_FORMAT(due_date, '%Y-%m-%d') AS dueDate,
@@ -3479,10 +3568,12 @@ async function upsertVendor(enterpriseId, vendor) {
     vendorName: saved.vendorName,
     contactName: saved.contactName || "",
     quantity: validVendorQuantity(saved.quantity),
+    unit: saved.unit || "piece",
     receivedQuantity: validVendorCount(saved.receivedQuantity),
     spoiledQuantity: validVendorCount(saved.spoiledQuantity),
     returnedQuantity: validVendorCount(saved.returnedQuantity),
     phone: saved.phone || "",
+    email: saved.email || "",
     reference: saved.reference || "",
     amount: Number(saved.amount || 0),
     price: Number(saved.amount || 0),
@@ -3831,10 +3922,12 @@ function normalizeVendorEntry(vendor) {
     vendorName: requiredString(vendor.vendorName || vendor.name, "Vendor name").slice(0, 160),
     contactName: String(vendor.contactName || "").trim().slice(0, 160),
     quantity,
+    unit: String(vendor.unit || "piece").trim().slice(0, 40) || "piece",
     receivedQuantity,
     spoiledQuantity,
     returnedQuantity,
     phone: String(vendor.phone || "").trim().slice(0, 60),
+    email: validOptionalEmail(vendor.email),
     reference: String(vendor.reference || "").trim().slice(0, 120),
     amount: validAmount(vendor.price ?? vendor.amount),
     dueDate: validOptionalDate(vendor.dueDate),
@@ -3981,6 +4074,13 @@ function validVendorCount(value) {
 function validVendorStatus(value) {
   const status = String(value || "ordered").trim().toLowerCase();
   return ["ordered", "received", "due", "paid"].includes(status) ? status : "ordered";
+}
+
+function validOptionalEmail(value) {
+  const email = normalizeEmail(value);
+  if (!email) return "";
+  if (!isValidEmail(email)) throw new Error("Enter a valid vendor email address");
+  return email;
 }
 
 function validLabelSize(value) {

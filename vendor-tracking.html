@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-quantity-summary" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-vendor-emails" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -267,6 +267,10 @@
                   <input name="phone" type="tel" />
                 </label>
                 <label>
+                  Email
+                  <input name="email" type="email" autocomplete="email" />
+                </label>
+                <label>
                   Payment method
                   <select name="paymentMethod">
                     <option value="Cash">Cash</option>
@@ -285,7 +289,7 @@
                 <div class="akrabi-list-controls">
                   <label class="akrabi-search">
                     <span class="sr-only">Search Vendor</span>
-                    <input id="vendorSearch" type="search" placeholder="Search name or phone" autocomplete="off">
+                    <input id="vendorSearch" type="search" placeholder="Search name, phone, or email" autocomplete="off">
                   </label>
                   <button class="secondary-action" id="toggleVendorList" type="button" aria-expanded="false">Show Vendor List</button>
                 </div>
@@ -418,6 +422,10 @@
           <input name="phone" type="tel" />
         </label>
         <label>
+          Email
+          <input name="email" type="email" autocomplete="email" />
+        </label>
+        <label>
           Payment method
           <select name="paymentMethod">
             <option value="Cash">Cash</option>
@@ -433,7 +441,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-quantity-summary"></script>
+    <script src="vendor-tracking.js?v=20260804-vendor-emails"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>
