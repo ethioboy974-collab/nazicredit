@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendor Ledger | NaziCredit</title>
-    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-statement-clean" />
+    <link rel="stylesheet" href="vendor-tracking.css?v=20260804-statement-search" />
   </head>
   <body>
     <section class="login-screen hidden" id="loginScreen">
@@ -311,11 +311,11 @@
             <div class="panel-heading statement-heading">
               <div>
                 <h3>Vendor statement</h3>
-                <p id="statementSubtext">Search a vendor or review this month.</p>
+                <p id="statementSubtext">Type a vendor name to display their statement.</p>
               </div>
               <label class="compact-select">
-                Find vendor
-                <input id="statementSearch" type="search" list="akrabiOptions" placeholder="Vendor name" autocomplete="off" />
+                Type vendor
+                <input id="statementSearch" type="search" list="akrabiOptions" placeholder="Start typing vendor name" autocomplete="off" />
               </label>
             </div>
             <div class="print-report-header" id="printReportHeader">
@@ -462,7 +462,7 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-statement-clean"></script>
+    <script src="vendor-tracking.js?v=20260804-statement-search"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>
