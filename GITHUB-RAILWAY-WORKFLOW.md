@@ -46,8 +46,8 @@ Required production variables verified by name in Railway production include:
 - TWILIO_AUTH_TOKEN=<private Twilio auth token>
 - TWILIO_FROM_NUMBER=<private Twilio SMS-capable number>
 - TWILIO_MESSAGING_SERVICE_SID=<optional, recommended when available>
-- EMAIL_FROM=Nazi Credit <security@nazicredit.com>, if email recovery is enabled
-- RESEND_API_KEY=<private Resend API key>, if email recovery is enabled
+- EMAIL_FROM=Nazi Credit <security@nazicredit.com>, if email recovery or vendor record emails are enabled
+- RESEND_API_KEY=<private Resend API key>, required for email recovery and automatic vendor record emails
 - BACKUP_ENABLED=true
 - BACKUP_S3_ENDPOINT=<private bucket endpoint>
 - BACKUP_S3_REGION=<private bucket region>
