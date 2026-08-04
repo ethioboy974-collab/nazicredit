@@ -713,7 +713,7 @@ function renderStatement() {
   const hasResults = statementEntries.length > 0;
   elements.statementEmpty.textContent = hasSearch
     ? "No statement found for that vendor."
-    : "No statement records for this month.";
+    : "Type a vendor name to display their statement.";
   elements.statementEmpty.hidden = hasResults;
   elements.statementOverview.hidden = !hasResults;
   elements.statementTableWrap.hidden = !hasResults;
@@ -723,7 +723,7 @@ function renderStatement() {
   elements.paymentBar.hidden = !hasResults;
   document.querySelector("#statementSubtext").textContent = searchText
     ? `Search results for "${elements.statementSearch.value.trim()}"`
-    : "Search a vendor or review this month.";
+    : "Type a vendor name to display their statement.";
 
   elements.quantitySummary.innerHTML = buildQuantitySummary(statementEntries);
 
@@ -887,6 +887,7 @@ function matchesStatementSearch(entry, searchText) {
 }
 
 function getStatementEntries(searchText) {
+  if (!searchText) return [];
   return state.entries.filter((entry) => matchesStatementSearch(entry, searchText));
 }
 
