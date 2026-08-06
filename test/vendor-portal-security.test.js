@@ -10,8 +10,13 @@ const {
 } = require("../vendor-portal-security");
 
 test("normalizes vendor phone and email logins", () => {
-  assert.equal(normalizeVendorPhone("+1 (703) 555-0199"), "+17035550199");
+  assert.equal(normalizeVendorPhone("+1 (703) 555-0199"), "17035550199");
   assert.equal(normalizeVendorEmail(" Vendor@Example.COM "), "vendor@example.com");
+});
+
+test("phone login ignores plus signs and formatting", () => {
+  assert.equal(normalizeVendorPhone("+1 (571) 502-3673"), "15715023673");
+  assert.equal(normalizeVendorPhone("1-571-502-3673"), "15715023673");
 });
 
 test("portal rows require both the tenant and vendor account", () => {

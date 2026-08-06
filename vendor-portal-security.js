@@ -1,8 +1,7 @@
 function normalizeVendorPhone(value) {
   const text = String(value || "").trim();
   if (!text) return "";
-  const prefix = text.startsWith("+") ? "+" : "";
-  return `${prefix}${text.replace(/\D/g, "")}`;
+  return text.replace(/\D/g, "");
 }
 
 function normalizeVendorEmail(value) {

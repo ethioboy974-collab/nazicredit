@@ -3502,7 +3502,7 @@ async function createVendorAccount(session, body) {
 
   const [existingRows] = await pool.query(`
     SELECT id FROM customer_credit_vendor_accounts
-    WHERE enterprise_id = ? AND ((? <> '' AND phone_normalized = ?) OR (? <> '' AND email_normalized = ?))
+    WHERE enterprise_id = ? AND ((? <> '' AND REPLACE(phone_normalized, '+', '') = ?) OR (? <> '' AND email_normalized = ?))
     LIMIT 1
   `, [session.enterpriseId, phoneNormalized, phoneNormalized, email, email]);
   if (existingRows.length) {
@@ -5091,7 +5091,7 @@ async function findVendorAccountForLogin(enterpriseCode, login) {
       a.password_hash AS passwordHash, a.session_version AS sessionVersion, a.status
     FROM customer_credit_enterprises e
     INNER JOIN customer_credit_vendor_accounts a ON a.enterprise_id = e.id
-    WHERE e.code = ? AND (a.email_normalized = ? OR a.phone_normalized = ?)
+    WHERE e.code = ? AND (a.email_normalized = ? OR REPLACE(a.phone_normalized, '+', '') = ?)
     LIMIT 1
   `, [enterpriseCode, email || null, phone || null]);
   return rows[0] || null;
