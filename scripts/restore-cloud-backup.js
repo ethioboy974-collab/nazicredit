@@ -31,13 +31,22 @@ const tableDefinitions = [
       "session_version",
       "email",
       "email_verified_at",
+      "employee_number",
+      "phone",
+      "employment_status",
       "created_at",
       "updated_at",
     ],
   },
   {
     name: "customer_credit_time_entries",
-    columns: ["id", "enterprise_id", "user_id", "clock_in", "clock_out", "created_at", "updated_at"],
+    columns: ["id", "enterprise_id", "user_id", "clock_in", "clock_out", "paid_at", "paid_by",
+      "adjusted_by", "adjustment_reason", "created_at", "updated_at"],
+  },
+  {
+    name: "customer_credit_registered_devices",
+    columns: ["id", "enterprise_id", "device_name", "token_hash", "status", "registered_by",
+      "last_used_at", "created_at", "updated_at"],
   },
   {
     name: "customer_credit_products",
@@ -269,6 +278,7 @@ async function main() {
     await connection.query("DELETE FROM customer_credit_vendor_tracking");
     await connection.query("DELETE FROM customer_credit_vendor_accounts");
     await connection.query("DELETE FROM customer_credit_products");
+    await connection.query("DELETE FROM customer_credit_registered_devices");
     await connection.query("DELETE FROM customer_credit_time_entries");
     await connection.query("DELETE FROM customer_credit_users");
     await connection.query("DELETE FROM customer_credit_enterprises");
@@ -362,7 +372,8 @@ function validateBackup(backup) {
     ) {
       backup.tables[table.name] = [];
     }
-    if (table.name === "customer_credit_time_entries" && !Array.isArray(backup.tables[table.name])) {
+    if (["customer_credit_time_entries", "customer_credit_registered_devices"].includes(table.name)
+        && !Array.isArray(backup.tables[table.name])) {
       backup.tables[table.name] = [];
     }
     if (!Array.isArray(backup.tables[table.name])) {

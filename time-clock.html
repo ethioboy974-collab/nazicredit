@@ -9,21 +9,18 @@
 <body>
   <header>
     <div><p class="eyebrow">Employee Time Clock</p><h1 id="employeeName">Time Clock</h1><p id="currentTime"></p></div>
-    <a href="/index.html">Back to store</a>
+    <nav><a id="adminLink" href="/time-clock-admin.html" hidden>Time clock admin</a> <a href="/index.html">Back to store</a></nav>
   </header>
   <main>
     <section class="clock-card">
       <div><span>Current status</span><strong id="clockStatus">Loading…</strong><p id="shiftStarted"></p></div>
-      <button id="clockButton" type="button" disabled>Loading…</button>
+      <div class="clock-actions"><button id="clockInButton" type="button" disabled>Clock in</button><button id="clockOutButton" class="clock-out" type="button" disabled>Clock out</button></div>
       <p class="message" id="clockMessage" hidden></p>
     </section>
     <section class="panel">
       <div class="heading"><h2>My recent shifts</h2><p>Your clock-in and clock-out history.</p></div>
+      <div class="time-card-totals" id="timeCardTotals"></div>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th></tr></thead><tbody id="ownRows"></tbody></table></div>
-    </section>
-    <section class="panel" id="teamPanel" hidden>
-      <div class="heading"><h2>Employee time records</h2><p>Visible to the store owner.</p></div>
-      <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th></tr></thead><tbody id="teamRows"></tbody></table></div>
     </section>
   </main>
   <script src="time-clock.js?v=20260806"></script>

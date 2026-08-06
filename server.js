@@ -230,6 +230,7 @@ async function createCloudBackup() {
       ),
       customer_credit_users: await selectBackupRows(connection, "customer_credit_users"),
       customer_credit_time_entries: await selectBackupRows(connection, "customer_credit_time_entries"),
+      customer_credit_registered_devices: await selectBackupRows(connection, "customer_credit_registered_devices"),
       customer_credit_products: await selectBackupRows(connection, "customer_credit_products"),
       customer_credit_barcode_print_events: await selectBackupRows(
         connection,
@@ -317,6 +318,7 @@ async function selectBackupRows(connection, tableName) {
     "customer_credit_enterprises",
     "customer_credit_users",
     "customer_credit_time_entries",
+    "customer_credit_registered_devices",
     "customer_credit_products",
     "customer_credit_barcode_print_events",
     "customer_credit_vendor_tracking",
@@ -512,6 +514,11 @@ async function handleRequest(request, response) {
       redirect(response, "/index.html");
       return;
     }
+    if ((requestUrl.pathname === "/time-clock-admin.html" || requestUrl.pathname === "/time-clock-admin")
+        && session.role !== "owner") {
+      redirect(response, "/time-clock.html");
+      return;
+    }
     if (
       (requestUrl.pathname === "/ai-dashboard.html" || requestUrl.pathname === "/ai-dashboard")
       && session.role !== "owner"
@@ -593,7 +600,8 @@ async function handleLoginRequest(request, response, requestUrl) {
   const enterpriseCode = normalizeEnterpriseCode(params.enterprise || config.auth.defaultEnterpriseCode);
   const username = normalizeUsername(params.username || config.auth.defaultUsername);
   const user = await findEnterpriseUser(enterpriseCode, username);
-  if (!user || user.enterpriseStatus !== "active" || !(await passwordMatches(params.password || "", user.passwordHash))) {
+  if (!user || user.enterpriseStatus !== "active" || user.employmentStatus === "inactive"
+      || !(await passwordMatches(params.password || "", user.passwordHash))) {
     recordFailedLogin(clientKey);
     sendLoginPage(response, "Wrong enterprise, username, or password.", {
       enterpriseCode,
@@ -1345,12 +1353,13 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/time-clock") {
-    sendJson(response, 200, { ok: true, ...(await getTimeClockData(session)) });
+    sendJson(response, 200, { ok: true, ...(await getTimeClockData(session, request)) });
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/in") {
     if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking in");
+    await requireRegisteredTimeClockDevice(request, session);
     const shift = await clockEmployeeIn(session);
     sendJson(response, 201, { ok: true, shift });
     return;
@@ -1358,8 +1367,43 @@ async function handleApiRequest(request, response, requestUrl, session) {
 
   if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/out") {
     if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking out");
+    await requireRegisteredTimeClockDevice(request, session);
     const shift = await clockEmployeeOut(session);
     sendJson(response, 200, { ok: true, shift });
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/time-clock/admin") {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true, ...(await getTimeClockAdminData(session)) });
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/admin/employee") {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true, employee: await saveTimeClockEmployee(session, await readJsonBody(request)) });
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/admin/device/register") {
+    requireEnterpriseOwner(session);
+    const registration = await registerTimeClockDevice(session, (await readJsonBody(request)).name);
+    setTimeClockDeviceCookie(response, registration.token);
+    sendJson(response, 201, { ok: true, device: registration.device });
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/admin/device/deactivate") {
+    requireEnterpriseOwner(session);
+    await deactivateTimeClockDevice(session, (await readJsonBody(request)).id);
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/admin/entry") {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true, entry: await saveTimeEntryAdjustment(session, await readJsonBody(request)) });
+    return;
+  }
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/admin/payroll") {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true, updated: await markTimeEntriesPaid(session, (await readJsonBody(request)).ids) });
     return;
   }
 
@@ -1952,6 +1996,9 @@ async function ensureSchema() {
       session_version INT NOT NULL DEFAULT 1,
       email VARCHAR(254) NULL,
       email_verified_at DATETIME NULL,
+      employee_number VARCHAR(40) NULL,
+      phone VARCHAR(60) NULL,
+      employment_status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_customer_credit_user_enterprise_username (enterprise_id, username),
@@ -1982,6 +2029,12 @@ async function ensureSchema() {
     "email_verified_at",
     "DATETIME NULL AFTER email",
   );
+  await addColumnIfMissing("customer_credit_users", "employee_number", "VARCHAR(40) NULL AFTER email_verified_at");
+  await addColumnIfMissing("customer_credit_users", "phone", "VARCHAR(60) NULL AFTER employee_number");
+  await addColumnIfMissing("customer_credit_users", "employment_status",
+    "ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER phone");
+  await addIndexIfMissing("customer_credit_users", "uq_users_enterprise_employee_number",
+    "ADD UNIQUE INDEX uq_users_enterprise_employee_number (enterprise_id, employee_number)");
   await addIndexIfMissing(
     "customer_credit_users",
     "uq_customer_credit_user_enterprise_email",
@@ -1995,6 +2048,10 @@ async function ensureSchema() {
       user_id VARCHAR(64) NOT NULL,
       clock_in DATETIME NOT NULL,
       clock_out DATETIME NULL,
+      paid_at DATETIME NULL,
+      paid_by VARCHAR(64) NULL,
+      adjusted_by VARCHAR(64) NULL,
+      adjustment_reason VARCHAR(255) NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_time_entries_enterprise_clock (enterprise_id, clock_in),
@@ -2005,6 +2062,19 @@ async function ensureSchema() {
         REFERENCES customer_credit_users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await addColumnIfMissing("customer_credit_time_entries", "paid_at", "DATETIME NULL AFTER clock_out");
+  await addColumnIfMissing("customer_credit_time_entries", "paid_by", "VARCHAR(64) NULL AFTER paid_at");
+  await addColumnIfMissing("customer_credit_time_entries", "adjusted_by", "VARCHAR(64) NULL AFTER paid_by");
+  await addColumnIfMissing("customer_credit_time_entries", "adjustment_reason", "VARCHAR(255) NULL AFTER adjusted_by");
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS customer_credit_registered_devices (
+    id VARCHAR(64) PRIMARY KEY, enterprise_id VARCHAR(64) NOT NULL, device_name VARCHAR(120) NOT NULL,
+    token_hash CHAR(64) NOT NULL, status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    registered_by VARCHAR(64) NOT NULL, last_used_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_registered_device_token (token_hash), INDEX idx_registered_devices_enterprise (enterprise_id, status),
+    CONSTRAINT fk_registered_devices_enterprise FOREIGN KEY (enterprise_id) REFERENCES customer_credit_enterprises(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   const defaultEnterprise = await ensureDefaultEnterprise();
 
@@ -4139,10 +4209,11 @@ async function listRecords(enterpriseId) {
   }));
 }
 
-async function getTimeClockData(session) {
+async function getTimeClockData(session, request) {
   const [ownRows] = await pool.query(`SELECT id,
       DATE_FORMAT(clock_in, '%Y-%m-%dT%H:%i:%s') AS clockIn,
-      DATE_FORMAT(clock_out, '%Y-%m-%dT%H:%i:%s') AS clockOut
+      DATE_FORMAT(clock_out, '%Y-%m-%dT%H:%i:%s') AS clockOut,
+      DATE_FORMAT(paid_at, '%Y-%m-%dT%H:%i:%s') AS paidAt
     FROM customer_credit_time_entries
     WHERE enterprise_id = ? AND user_id = ?
     ORDER BY clock_in DESC LIMIT 100`, [session.enterpriseId, session.userId]);
@@ -4158,9 +4229,11 @@ async function getTimeClockData(session) {
       ORDER BY entry.clock_in DESC LIMIT 500`, [session.enterpriseId]);
   }
   const normalize = (row) => ({ ...row, clockIn: toIsoLike(row.clockIn),
-    clockOut: row.clockOut ? toIsoLike(row.clockOut) : null });
+    clockOut: row.clockOut ? toIsoLike(row.clockOut) : null,
+    paidAt: row.paidAt ? toIsoLike(row.paidAt) : null });
   const ownEntries = ownRows.map(normalize);
-  return { user: { username: session.username, role: publicRole(session.role) },
+  const device = await findRegisteredTimeClockDevice(request, session);
+  return { user: { username: session.username, role: publicRole(session.role) }, deviceApproved: Boolean(device),
     activeShift: ownEntries.find((entry) => !entry.clockOut) || null,
     ownEntries, teamEntries: teamRows.map(normalize), canViewTeam: session.role === "owner" };
 }
@@ -4210,6 +4283,138 @@ async function clockEmployeeOut(session) {
     await connection.rollback();
     throw error;
   } finally { connection.release(); }
+}
+
+async function findRegisteredTimeClockDevice(request, session) {
+  const token = parseCookies(request.headers.cookie || "").time_clock_device;
+  if (!token || !/^[A-Za-z0-9_-]{30,}$/.test(token)) return null;
+  const [rows] = await pool.query(`SELECT id, device_name AS deviceName FROM customer_credit_registered_devices
+    WHERE enterprise_id = ? AND token_hash = ? AND status = 'active' LIMIT 1`,
+  [session.enterpriseId, hashSecurityToken(token)]);
+  if (!rows.length) return null;
+  await pool.query("UPDATE customer_credit_registered_devices SET last_used_at = ? WHERE id = ? AND enterprise_id = ?",
+    [toMysqlDateTime(new Date().toISOString()), rows[0].id, session.enterpriseId]);
+  return rows[0];
+}
+
+async function requireRegisteredTimeClockDevice(request, session) {
+  const device = await findRegisteredTimeClockDevice(request, session);
+  if (!device) throw httpError(403, "Clock in and out is allowed only on a registered store tablet");
+  return device;
+}
+
+function setTimeClockDeviceCookie(response, token) {
+  const secureFlag = config.auth.secureCookie ? "; Secure" : "";
+  response.setHeader("Set-Cookie", `time_clock_device=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000${secureFlag}`);
+}
+
+async function registerTimeClockDevice(session, value) {
+  const name = requiredString(value, "Tablet name").slice(0, 120);
+  const token = crypto.randomBytes(32).toString("base64url");
+  const id = cryptoRandomId();
+  await pool.query(`INSERT INTO customer_credit_registered_devices
+    (id, enterprise_id, device_name, token_hash, registered_by) VALUES (?, ?, ?, ?, ?)`,
+  [id, session.enterpriseId, name, hashSecurityToken(token), session.userId]);
+  await recordAudit(pool, session, { action:"time_clock.device_registered", entityType:"device", entityId:id,
+    summary:`Registered store tablet ${name}` });
+  return { token, device:{ id, deviceName:name, status:"active" } };
+}
+
+async function deactivateTimeClockDevice(session, value) {
+  const id = requiredString(value, "Device ID").slice(0, 64);
+  const [result] = await pool.query(`UPDATE customer_credit_registered_devices SET status='inactive'
+    WHERE id=? AND enterprise_id=?`, [id, session.enterpriseId]);
+  if (!result.affectedRows) throw httpError(404, "Registered tablet not found");
+  await recordAudit(pool, session, { action:"time_clock.device_deactivated", entityType:"device", entityId:id,
+    summary:"Deactivated a store tablet" });
+}
+
+async function saveTimeClockEmployee(session, body) {
+  const id = String(body.id || "").trim();
+  const employeeNumber = requiredString(body.employeeNumber, "Employee ID").slice(0, 40);
+  const displayName = requiredString(body.name, "Employee name").slice(0, 160);
+  const phone = requiredString(body.phone, "Phone").slice(0, 60);
+  const status = body.status === "inactive" ? "inactive" : "active";
+  if (id) {
+    const [result] = await pool.query(`UPDATE customer_credit_users SET employee_number=?, display_name=?, phone=?,
+      employment_status=?, session_version=session_version + IF(employment_status<>?,1,0)
+      WHERE id=? AND enterprise_id=? AND role<>'owner'`,
+    [employeeNumber, displayName, phone, status, status, id, session.enterpriseId]);
+    if (!result.affectedRows) throw httpError(404, "Employee not found");
+    await recordAudit(pool, session, { action:"time_clock.employee_updated", entityType:"user", entityId:id,
+      summary:`Updated employee ${displayName} (${status})` });
+    return { id, employeeNumber, name:displayName, phone, status };
+  }
+  const username = validateAccountUsername(body.username || employeeNumber);
+  const password = validateAccountPassword(body.password);
+  const userId = cryptoRandomId();
+  try {
+    await pool.query(`INSERT INTO customer_credit_users
+      (id,enterprise_id,username,display_name,role,password_hash,must_change_password,employee_number,phone,employment_status)
+      VALUES (?,?,?,?, 'staff',?,1,?,?,?)`,
+    [userId, session.enterpriseId, username, displayName, await hashPassword(password), employeeNumber, phone, status]);
+  } catch (error) { if (error.code === "ER_DUP_ENTRY") throw httpError(409,"Employee ID or username already exists"); throw error; }
+  await recordAudit(pool, session, { action:"time_clock.employee_created", entityType:"user", entityId:userId,
+    summary:`Created employee ${displayName}` });
+  return { id:userId, employeeNumber, name:displayName, phone, status, username };
+}
+
+async function saveTimeEntryAdjustment(session, body) {
+  const employeeId = requiredString(body.employeeId, "Employee").slice(0, 64);
+  const clockIn = toMysqlDateTime(body.clockIn);
+  const clockOut = body.clockOut ? toMysqlDateTime(body.clockOut) : null;
+  if (clockOut && new Date(body.clockOut) <= new Date(body.clockIn)) throw httpError(400,"Clock out must be after clock in");
+  const reason = requiredString(body.reason, "Adjustment reason").slice(0,255);
+  const [employee] = await pool.query(`SELECT id FROM customer_credit_users WHERE id=? AND enterprise_id=? AND role<>'owner' LIMIT 1`,
+    [employeeId, session.enterpriseId]);
+  if (!employee.length) throw httpError(404,"Employee not found");
+  const id = String(body.id || "").trim() || cryptoRandomId();
+  if (body.id) {
+    const [result] = await pool.query(`UPDATE customer_credit_time_entries SET clock_in=?,clock_out=?,adjusted_by=?,adjustment_reason=?
+      WHERE id=? AND enterprise_id=? AND paid_at IS NULL`, [clockIn,clockOut,session.userId,reason,id,session.enterpriseId]);
+    if (!result.affectedRows) throw httpError(404,"Unpaid time entry not found");
+  } else {
+    await pool.query(`INSERT INTO customer_credit_time_entries
+      (id,enterprise_id,user_id,clock_in,clock_out,adjusted_by,adjustment_reason) VALUES(?,?,?,?,?,?,?)`,
+    [id,session.enterpriseId,employeeId,clockIn,clockOut,session.userId,reason]);
+  }
+  await recordAudit(pool, session, { action:body.id?"time_clock.entry_adjusted":"time_clock.missed_punch_added",
+    entityType:"time_entry", entityId:id, summary:`${body.id?"Adjusted time entry":"Added missed punch"}: ${reason}` });
+  return { id };
+}
+
+async function markTimeEntriesPaid(session, values) {
+  const ids = [...new Set((Array.isArray(values)?values:[]).map(String).filter(Boolean))].slice(0,500);
+  if (!ids.length) throw httpError(400,"Select time records to mark paid");
+  const placeholders = ids.map(()=>"?").join(",");
+  const now = toMysqlDateTime(new Date().toISOString());
+  const [result] = await pool.query(`UPDATE customer_credit_time_entries SET paid_at=?,paid_by=?
+    WHERE enterprise_id=? AND id IN (${placeholders}) AND clock_out IS NOT NULL AND paid_at IS NULL`,
+  [now,session.userId,session.enterpriseId,...ids]);
+  await recordAudit(pool, session, { action:"time_clock.payroll_paid",entityType:"payroll",entityId:ids[0],
+    summary:`Moved ${result.affectedRows} time records to payroll history` });
+  return result.affectedRows;
+}
+
+async function getTimeClockAdminData(session) {
+  const [employees] = await pool.query(`SELECT id,employee_number AS employeeNumber,display_name AS name,username,
+      phone,employment_status AS status FROM customer_credit_users WHERE enterprise_id=? AND role<>'owner' ORDER BY display_name`,
+  [session.enterpriseId]);
+  const [entries] = await pool.query(`SELECT entry.id,entry.user_id AS employeeId,users.display_name AS employeeName,
+      DATE_FORMAT(entry.clock_in,'%Y-%m-%dT%H:%i:%s') AS clockIn,DATE_FORMAT(entry.clock_out,'%Y-%m-%dT%H:%i:%s') AS clockOut,
+      DATE_FORMAT(entry.paid_at,'%Y-%m-%dT%H:%i:%s') AS paidAt,entry.adjustment_reason AS adjustmentReason
+    FROM customer_credit_time_entries entry INNER JOIN customer_credit_users users ON users.id=entry.user_id
+    WHERE entry.enterprise_id=? ORDER BY entry.clock_in DESC LIMIT 2000`, [session.enterpriseId]);
+  const [devices] = await pool.query(`SELECT id,device_name AS deviceName,status,
+      DATE_FORMAT(last_used_at,'%Y-%m-%dT%H:%i:%s') AS lastUsedAt,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%s') AS createdAt
+    FROM customer_credit_registered_devices WHERE enterprise_id=? ORDER BY created_at DESC`, [session.enterpriseId]);
+  const [audit] = await pool.query(`SELECT username,action,summary,DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%s') AS createdAt
+    FROM customer_credit_audit_log WHERE enterprise_id=? AND action LIKE 'time_clock.%' ORDER BY created_at DESC LIMIT 300`,
+  [session.enterpriseId]);
+  const iso = value => value ? toIsoLike(value) : null;
+  return { employees, entries:entries.map(e=>({...e,clockIn:iso(e.clockIn),clockOut:iso(e.clockOut),paidAt:iso(e.paidAt)})),
+    devices:devices.map(d=>({...d,lastUsedAt:iso(d.lastUsedAt),createdAt:iso(d.createdAt)})),
+    audit:audit.map(a=>({...a,createdAt:iso(a.createdAt)})) };
 }
 
 async function saveRecords(session, records, audit) {
@@ -4894,6 +5099,7 @@ async function findEnterpriseUser(enterpriseCode, username) {
         u.id AS userId,
         u.username,
         u.role,
+        u.employment_status AS employmentStatus,
         u.must_change_password AS mustChangePassword,
         u.session_version AS sessionVersion,
         u.email,
@@ -4921,6 +5127,7 @@ async function refreshSessionAccess(session) {
         u.id AS userId,
         u.username,
         u.role,
+        u.employment_status AS employmentStatus,
         u.must_change_password AS mustChangePassword,
         u.session_version AS sessionVersion,
         u.email,
@@ -4933,7 +5140,7 @@ async function refreshSessionAccess(session) {
     [session.enterpriseId, session.userId],
   );
   const current = rows[0];
-  if (!current || current.enterpriseStatus !== "active") return null;
+  if (!current || current.enterpriseStatus !== "active" || current.employmentStatus === "inactive") return null;
   if (
     session.sessionVersion !== undefined &&
     Number(session.sessionVersion) !== Number(current.sessionVersion)
