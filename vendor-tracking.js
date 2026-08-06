@@ -395,14 +395,13 @@ function bindForms() {
     }
 
     const form = event.currentTarget;
-    if (!form.elements.phone.value.trim() && !form.elements.email.value.trim()) {
-      showToast("Enter a phone number or email for vendor login.");
+    if (!form.elements.phone.value.trim()) {
+      showToast("Enter a phone number for vendor login.");
       return;
     }
     try {
       const result = await databaseRequest("/vendor-accounts", { method: "POST", body: JSON.stringify({
         vendorName: form.elements.name.value.trim(), phone: form.elements.phone.value.trim(),
-        email: cleanEmail(form.elements.email.value),
       }) });
       const saved = result.vendor;
       const vendor = { id: saved.id, accountId: saved.id, name: saved.vendorName, phone: saved.phone || "",
@@ -413,7 +412,7 @@ function bindForms() {
       const notice = document.querySelector("#vendorCredentialNotice");
       notice.hidden = false;
       notice.innerHTML = result.created
-        ? `Vendor portal login created. Store code: <strong>${escapeHtml(accessState.enterpriseCode || "your store code")}</strong>. Login: <strong>${escapeHtml(vendor.phone || vendor.email)}</strong>. Temporary password: <strong>${escapeHtml(result.temporaryPassword)}</strong>. Portal: <strong>/vendor-login</strong>`
+        ? `Vendor portal login created. Store code: <strong>${escapeHtml(accessState.enterpriseCode || "your store code")}</strong>. Login: <strong>${escapeHtml(vendor.phone)}</strong>. Temporary password: <strong>${escapeHtml(result.temporaryPassword)}</strong>. Portal: <strong>/vendor-login</strong>`
         : `Existing vendor portal login updated for <strong>${escapeHtml(vendor.name)}</strong>.`;
       form.reset(); saveState(); render(); showToast("Vendor added with portal access.");
     } catch (error) { showToast(error.message); }
@@ -779,7 +778,6 @@ function handleVendorAction(event) {
   form.elements.id.value = vendor.id;
   form.elements.name.value = vendor.name;
   form.elements.phone.value = vendor.phone || "";
-  form.elements.email.value = vendor.email || "";
   form.elements.paymentMethod.value = vendor.paymentMethod;
   elements.vendorDialog.showModal();
 }
@@ -818,7 +816,6 @@ function saveEditedVendor() {
 
   vendor.name = cleanName(form.elements.name.value);
   vendor.phone = form.elements.phone.value.trim();
-  vendor.email = cleanEmail(form.elements.email.value);
   vendor.paymentMethod = form.elements.paymentMethod.value;
   saveState();
   elements.vendorDialog.close();

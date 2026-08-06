@@ -3382,9 +3382,11 @@ async function createVendorAccount(session, body) {
   if (existingRows.length) {
     const id = existingRows[0].id;
     await pool.query(`UPDATE customer_credit_vendor_accounts
-      SET vendor_name = ?, phone = ?, phone_normalized = NULLIF(?, ''), email = ?, email_normalized = NULLIF(?, '')
+      SET vendor_name = ?, phone = ?, phone_normalized = NULLIF(?, ''),
+        email = CASE WHEN ? = '' THEN email ELSE ? END,
+        email_normalized = CASE WHEN ? = '' THEN email_normalized ELSE ? END
       WHERE id = ? AND enterprise_id = ?`,
-    [vendorName, phone || null, phoneNormalized, email || null, email, id, session.enterpriseId]);
+    [vendorName, phone || null, phoneNormalized, email, email, email, email, id, session.enterpriseId]);
     return { created: false, vendor: (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === id) };
   }
 
