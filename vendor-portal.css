@@ -24,4 +24,11 @@ td { font-size:.9rem; }
 .unpaid { color:#b45309; font-weight:800; }
 .empty { color:#7b8794; text-align:center; }
 .error { background:#fef2f2; border:1px solid #fecaca; border-radius:7px; color:#991b1b; padding:12px; }
+.password-panel form { display:grid; gap:12px; max-width:520px; padding:0 16px 18px; }
+.password-panel label { color:#52606d; display:grid; font-size:.85rem; font-weight:700; gap:6px; }
+.password-panel input { border:1px solid #c8d3df; border-radius:7px; font:inherit; min-height:44px; padding:10px 11px; }
+.password-panel button { background:#0f766e; border:0; border-radius:7px; color:#fff; cursor:pointer; font:inherit; font-weight:800; min-height:44px; padding:10px 14px; }
+.password-panel button:disabled { cursor:wait; opacity:.65; }
+.form-message { border-radius:7px; padding:10px; }
+.success { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
 @media (max-width:760px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } header { padding:16px; } }

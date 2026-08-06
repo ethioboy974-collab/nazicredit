@@ -2,6 +2,41 @@ const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD
 const quantity = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 
 loadPortal();
+document.querySelector("#passwordForm").addEventListener("submit", changePassword);
+
+async function changePassword(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.querySelector("#passwordMessage");
+  const currentPassword = form.elements.currentPassword.value;
+  const newPassword = form.elements.newPassword.value;
+  if (newPassword !== form.elements.confirmPassword.value) {
+    showPasswordMessage("New passwords do not match.", true);
+    return;
+  }
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/vendor-portal/change-password", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || "Password could not be changed");
+    form.reset();
+    showPasswordMessage("Password changed successfully.", false);
+  } catch (error) {
+    showPasswordMessage(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function showPasswordMessage(value, isError) {
+  const target = document.querySelector("#passwordMessage");
+  target.hidden = false; target.textContent = value; target.classList.toggle("error", isError);
+  target.classList.toggle("success", !isError);
+}
 
 async function loadPortal() {
   try {

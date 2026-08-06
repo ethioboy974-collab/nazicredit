@@ -443,6 +443,17 @@ async function handleRequest(request, response) {
         sendJson(response, 200, { ok: true, ...(await getVendorPortalData(vendorSession)) });
         return;
       }
+      if (requestUrl.pathname === "/api/vendor-portal/change-password" && request.method === "POST") {
+        const body = await readJsonBody(request);
+        const sessionVersion = await changeVendorPassword(
+          vendorSession,
+          body.currentPassword,
+          body.newPassword,
+        );
+        setVendorSession(response, { ...vendorSession, sessionVersion });
+        sendJson(response, 200, { ok: true });
+        return;
+      }
       if (requestUrl.pathname.startsWith("/api/")) {
         sendJson(response, 405, { ok: false, error: "Vendor portal is read-only" });
         return;
@@ -3437,6 +3448,26 @@ async function getVendorPortalData(session) {
     paymentHistory,
     monthlyStatements: [...monthlyMap.values()].sort((a, b) => b.month.localeCompare(a.month)),
   };
+}
+
+async function changeVendorPassword(session, currentPassword, newPassword) {
+  const password = validateAccountPassword(newPassword);
+  const [accounts] = await pool.query(`SELECT password_hash AS passwordHash, session_version AS sessionVersion
+    FROM customer_credit_vendor_accounts WHERE id = ? AND enterprise_id = ? LIMIT 1`,
+  [session.vendorAccountId, session.enterpriseId]);
+  if (!accounts.length || !(await passwordMatches(String(currentPassword || ""), accounts[0].passwordHash))) {
+    throw httpError(400, "Current password is incorrect");
+  }
+  const sessionVersion = Number(accounts[0].sessionVersion || 1) + 1;
+  await pool.query(`UPDATE customer_credit_vendor_accounts
+    SET password_hash = ?, session_version = ?, updated_at = ? WHERE id = ? AND enterprise_id = ?`,
+  [await hashPassword(password), sessionVersion, toMysqlDateTime(new Date().toISOString()),
+    session.vendorAccountId, session.enterpriseId]);
+  await recordAudit(pool, { ...session, username: session.vendorName }, {
+    action: "vendor.password_changed", entityType: "vendor_account",
+    entityId: session.vendorAccountId, summary: "Vendor changed portal password",
+  });
+  return sessionVersion;
 }
 
 function createTemporaryVendorPassword() {

@@ -30,8 +30,18 @@
         <div class="heading"><div><h2>Payment history</h2><p>Deliveries marked paid by the store.</p></div></div>
         <div class="table-wrap"><table><thead><tr><th>Paid date</th><th>Product</th><th>Amount</th><th>Receiving ID</th></tr></thead><tbody id="paymentRows"></tbody></table></div>
       </section>
+      <section class="panel password-panel">
+        <div class="heading"><div><h2>Change password</h2><p>Use your current password to create a new one.</p></div></div>
+        <form id="passwordForm">
+          <label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required /></label>
+          <label>New password<input name="newPassword" type="password" autocomplete="new-password" minlength="10" required /></label>
+          <label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" required /></label>
+          <button type="submit">Change password</button>
+          <p class="form-message" id="passwordMessage" hidden></p>
+        </form>
+      </section>
       <p class="error" id="portalError" hidden></p>
     </main>
-    <script src="vendor-portal.js?v=20260806"></script>
+    <script src="vendor-portal.js?v=20260806-password"></script>
   </body>
 </html>
