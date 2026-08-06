@@ -33,7 +33,6 @@ const elements = {
   vendorEditForm: document.querySelector("#vendorEditForm"),
   saveVendorEdit: document.querySelector("#saveVendorEdit"),
   deliveryForm: document.querySelector("#deliveryForm"),
-  adjustmentForm: document.querySelector("#adjustmentForm"),
   vendorForm: document.querySelector("#vendorForm"),
   vendorList: document.querySelector("#vendorList"),
   vendorSearch: document.querySelector("#vendorSearch"),
@@ -305,7 +304,6 @@ function applyAuthState() {
 function setDefaultDates() {
   const today = localDateString();
   elements.deliveryForm.elements.date.value = today;
-  elements.adjustmentForm.elements.date.value = today;
 }
 
 function bindNavigation() {
@@ -407,13 +405,6 @@ function bindForms() {
     showToast("Delivery saved.");
   });
 
-  elements.adjustmentForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (!addEntryFromForm(event.currentTarget, "SPOILED")) return;
-    event.currentTarget.reset();
-    setDefaultDates();
-    showToast("Spoilage saved.");
-  });
 }
 
 function addEntryFromForm(form, type) {

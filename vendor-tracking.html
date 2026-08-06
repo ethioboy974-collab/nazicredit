@@ -58,10 +58,6 @@
             <span aria-hidden="true">+</span>
             Receive
           </button>
-          <button class="nav-tab" data-view="adjust" type="button">
-            <span aria-hidden="true">-</span>
-            Spoilage
-          </button>
           <button class="nav-tab" data-view="statement" type="button">
             <span aria-hidden="true">$</span>
             Statement
@@ -228,47 +224,6 @@
                 <input name="note" type="text" placeholder="Invoice, quality, or batch note" />
               </label>
               <button class="primary-action" type="submit">Save delivery</button>
-            </form>
-          </section>
-        </section>
-
-        <section class="view" id="adjust">
-          <section class="panel form-panel">
-            <div class="panel-heading">
-              <h3>Record spoilage or return</h3>
-            </div>
-            <form id="adjustmentForm" class="entry-form">
-              <label>
-                Date
-                <input name="date" type="date" required />
-              </label>
-              <label>
-                Vendor
-                <select name="vendorId" required></select>
-              </label>
-              <label>
-                Product
-                <input name="product" type="text" required />
-              </label>
-              <label>
-                Quantity
-                <input name="quantity" type="number" min="0.01" step="0.01" required />
-              </label>
-              <label>
-                Unit
-                <select name="unit" required>
-                  <option value="piece">piece</option>
-                  <option value="kg">kg</option>
-                  <option value="box">box</option>
-                  <option value="bag">bag</option>
-                  <option value="crate">crate</option>
-                </select>
-              </label>
-              <label>
-                Unit price (USD)
-                <input name="unitPrice" type="number" min="0" step="0.01" placeholder="0.00" required />
-              </label>
-              <button class="primary-action danger" type="submit">Save spoilage</button>
             </form>
           </section>
           <section class="panel">
