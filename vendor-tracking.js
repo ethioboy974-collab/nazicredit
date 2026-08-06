@@ -39,6 +39,7 @@ const elements = {
   toggleVendorList: document.querySelector("#toggleVendorList"),
   akrabiOptions: document.querySelector("#akrabiOptions"),
   statementSearch: document.querySelector("#statementSearch"),
+  statementStatus: document.querySelector("#statementStatus"),
   printVendorName: document.querySelector("#printVendorName"),
   printReportPeriod: document.querySelector("#printReportPeriod"),
   statementEmpty: document.querySelector("#statementEmpty"),
@@ -176,6 +177,7 @@ async function loadDatabaseState() {
       unitPrice: Number(delivery.amount || 0),
       note: delivery.note || "",
       createdAt: delivery.createdAt || delivery.updatedAt || new Date().toISOString(),
+      updatedAt: delivery.updatedAt || delivery.createdAt || new Date().toISOString(),
       databaseId: delivery.id,
       status: delivery.status || "due"
     };
@@ -344,6 +346,10 @@ function bindNavigation() {
   });
 
   elements.statementSearch.addEventListener("input", renderStatement);
+  elements.statementStatus.addEventListener("change", () => {
+    selectedStatementEntries.clear();
+    renderStatement();
+  });
   ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
     elements.deliveryForm.elements[name].addEventListener("input", updateAcceptedQuantity));
   elements.statementRows.addEventListener("click", handleStatementAction);
@@ -806,10 +812,11 @@ function saveEditedVendor() {
 function renderStatement() {
   const searchText = normalizeSearch(elements.statementSearch.value);
   const statementEntries = getStatementEntries(searchText);
+  const showingPaid = elements.statementStatus.value === "paid";
   const hasSearch = Boolean(searchText);
   const hasResults = statementEntries.length > 0;
   elements.statementEmpty.textContent = hasSearch
-    ? "No statement found for that vendor."
+    ? (showingPaid ? "No paid records found for that vendor." : "No unpaid statement found for that vendor.")
     : "Type a vendor name to display their statement.";
   elements.statementEmpty.hidden = hasResults;
   elements.statementOverview.hidden = !hasResults;
@@ -818,8 +825,12 @@ function renderStatement() {
   elements.quantitySummary.hidden = !hasResults;
   elements.statementTotalBar.hidden = !hasResults;
   elements.paymentBar.hidden = !hasResults;
+  elements.paySelectedRows.hidden = showingPaid;
+  elements.markUnpaid.hidden = !showingPaid;
+  elements.printPaidReport.hidden = !showingPaid;
+  elements.clearPaidRecords.hidden = !showingPaid;
   document.querySelector("#statementSubtext").textContent = searchText
-    ? `Search results for "${elements.statementSearch.value.trim()}"`
+    ? `${showingPaid ? "Paid records" : "Unpaid statement"} for "${elements.statementSearch.value.trim()}"`
     : "Type a vendor name to display their statement.";
 
   elements.quantitySummary.innerHTML = buildQuantitySummary(statementEntries);
@@ -837,7 +848,8 @@ function renderStatement() {
         item.vendorId === entry.vendorId
         && item.month === entry.date.slice(0, 7)
         && (!Array.isArray(item.entryIds) || item.entryIds.includes(String(entry.id))));
-      const paymentStatus = payment ? `Paid ${formatDate(payment.date)}` : "Unpaid";
+      const paid = isEntryPaid(entry);
+      const paymentStatus = paid ? `Paid ${formatDate(payment?.date || entry.updatedAt || entry.date)}` : "Unpaid";
 
       return `
       <tr>
@@ -854,7 +866,7 @@ function renderStatement() {
         <td data-label="Quantities"><strong>${formatQty(entry.receivedQuantity ?? quantity)} / ${formatQty(entry.spoilageQuantity || 0)} / ${formatQty(entry.acceptedQuantity ?? quantity)} ${escapeHtml(entry.unit)}</strong></td>
         <td data-label="Unit price">${money.format(unitPrice)}</td>
         <td data-label="Amount" class="${amount < 0 ? "amount-warning" : "amount-positive"}">${money.format(amount)}</td>
-        <td data-label="Status"><span class="status-pill ${payment ? "paid" : "unpaid"}">${paymentStatus}</span></td>
+        <td data-label="Status"><span class="status-pill ${paid ? "paid" : "unpaid"}">${paymentStatus}</span></td>
         <td data-label="Action" class="statement-action-column">
           <button class="text-action danger-text" data-delete-entry="${entry.id}" type="button">Delete</button>
         </td>
@@ -969,6 +981,7 @@ async function paySelectedStatementRows() {
     }
   });
   selectedEntries.forEach((entry) => { entry.status = "paid"; });
+  selectedStatementEntries.clear();
 
   saveState();
   renderStatement();
@@ -998,7 +1011,9 @@ function matchesStatementSearch(entry, searchText) {
 
 function getStatementEntries(searchText) {
   if (!searchText) return [];
-  return state.entries.filter((entry) => matchesStatementSearch(entry, searchText));
+  const showingPaid = elements.statementStatus.value === "paid";
+  return state.entries.filter((entry) =>
+    matchesStatementSearch(entry, searchText) && isEntryPaid(entry) === showingPaid);
 }
 
 function findSingleStatementAkrabiId() {
@@ -1065,19 +1080,11 @@ function printSelectedPaidReport() {
   }
 
   const vendor = findVendor(vendorId);
-  const payment = state.payments.find(
-    (item) => item.vendorId === vendorId && item.month === state.activeMonth,
-  );
-  if (!payment) {
-    showToast("Pay the selected records before sending a report.");
-    return;
-  }
-
   const selectedIds = [...selectedStatementEntries];
   const reportEntries = entriesForActiveMonth().filter((entry) =>
     entry.vendorId === vendorId
     && (!selectedIds.length || selectedIds.includes(String(entry.id)))
-    && (!Array.isArray(payment.entryIds) || payment.entryIds.includes(String(entry.id))));
+    && isEntryPaid(entry));
   if (!reportEntries.length) {
     showToast("Select at least one paid record.");
     return;
