@@ -94,13 +94,15 @@ function applyAiVendorDraft() {
     const form = elements.deliveryForm;
     if (d.date) form.elements.date.value = d.date;
     form.elements.product.value = d.product || "";
-    form.elements.quantity.value = d.quantity || "";
+    form.elements.receivedQuantity.value = d.receivedQuantity ?? d.quantity ?? "";
+    form.elements.spoilageQuantity.value = d.spoilageQuantity ?? 0;
     if ([...form.elements.unit.options].some((o) => o.value === d.unit)) form.elements.unit.value = d.unit;
     form.elements.note.value = d.notes || "";
     form.elements.vendorEmail.value = cleanEmail(d.vendorEmail || d.email || "");
     const wanted = String(d.vendorName || "").toLowerCase();
-    const option = [...form.elements.vendorId.options].find((o) => o.textContent.toLowerCase().includes(wanted));
-    if (option) form.elements.vendorId.value = option.value;
+    const vendor = state.vendors.find((item) => item.name.toLowerCase().includes(wanted));
+    if (vendor) form.elements.vendorName.value = vendor.name;
+    updateAcceptedQuantity();
     if (!form.elements.vendorEmail.value) updateDeliveryVendorEmail();
     showToast("AI draft loaded. Review it before saving.");
   } catch {}
@@ -141,7 +143,10 @@ async function databaseRequest(path, options = {}) {
 }
 
 async function loadDatabaseState() {
-  const result = await databaseRequest("/vendors");
+  const [result, spoilageResult] = await Promise.all([
+    databaseRequest("/vendors"),
+    databaseRequest("/vendors/spoilage-history"),
+  ]);
   const deliveries = Array.isArray(result.vendors) ? result.vendors : [];
   const vendorMap = new Map();
   const entries = [];
@@ -165,15 +170,20 @@ async function loadDatabaseState() {
       createdAt: delivery.createdAt || delivery.updatedAt || new Date().toISOString(),
       databaseId: delivery.id
     };
-    const received = Number(delivery.receivedQuantity || 0);
+    const legacyQuantity = Number(delivery.quantity || 0);
+    const received = Number(delivery.receivedQuantity ?? legacyQuantity);
     const spoiled = Number(delivery.spoiledQuantity || 0);
+    const accepted = Number(delivery.acceptedQuantity ?? Math.max(received - spoiled, 0));
     const returned = Number(delivery.returnedQuantity || 0);
-    if (received > 0) entries.push({ ...base, id: `${delivery.id}-received`, type: "DELIVERED", quantity: received });
-    if (spoiled > 0) entries.push({ ...base, id: `${delivery.id}-spoiled`, type: "SPOILED", quantity: spoiled });
+    if (received > 0 || spoiled > 0 || delivery.acceptedQuantity !== undefined) {
+      entries.push({ ...base, id: `${delivery.id}-received`, type: "DELIVERED", quantity: accepted,
+        receivedQuantity: received, spoilageQuantity: spoiled, acceptedQuantity: accepted });
+    }
     if (returned > 0) entries.push({ ...base, id: `${delivery.id}-returned`, type: "RETURNED", quantity: returned });
   }
   state.vendors = [...vendorMap.values()];
   state.entries = entries;
+  state.spoilageHistory = Array.isArray(spoilageResult.history) ? spoilageResult.history : [];
   state.activeMonth = localDateString().slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
   saveState();
@@ -189,10 +199,11 @@ async function syncEntryToDatabase(entry) {
       vendorName: vendor.name,
       phone: vendor.phone || "",
       email: vendor.email || "",
-      quantity: entry.quantity,
+      quantity: entry.receivedQuantity ?? entry.quantity,
       unit: entry.unit,
-      receivedQuantity: entry.type === "DELIVERED" ? entry.quantity : 0,
-      spoiledQuantity: entry.type === "SPOILED" ? entry.quantity : 0,
+      receivedQuantity: entry.type === "DELIVERED" ? (entry.receivedQuantity ?? entry.quantity) : entry.quantity,
+      spoiledQuantity: entry.type === "DELIVERED" ? (entry.spoilageQuantity || 0) : (entry.type === "SPOILED" ? entry.quantity : 0),
+      acceptedQuantity: entry.type === "DELIVERED" ? (entry.acceptedQuantity ?? entry.quantity) : 0,
       returnedQuantity: entry.type === "RETURNED" ? entry.quantity : 0,
       reference: entry.product,
       amount: entry.unitPrice,
@@ -324,7 +335,9 @@ function bindNavigation() {
   });
 
   elements.statementSearch.addEventListener("input", renderStatement);
-  elements.deliveryForm.elements.vendorId.addEventListener("change", updateDeliveryVendorEmail);
+  elements.deliveryForm.elements.vendorName.addEventListener("input", updateDeliveryVendorEmail);
+  ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
+    elements.deliveryForm.elements[name].addEventListener("input", updateAcceptedQuantity));
   elements.statementRows.addEventListener("click", handleStatementAction);
   elements.statementRows.addEventListener("change", handleStatementSelection);
   elements.selectAllStatementRows.addEventListener("change", toggleAllStatementRows);
@@ -336,6 +349,20 @@ function bindNavigation() {
   elements.printReport.addEventListener("click", printStatement);
   elements.historyRows.addEventListener("click", handleHistoryAction);
   elements.saveEdit.addEventListener("click", saveEditedEntry);
+  ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
+    elements.editForm.elements[name].addEventListener("input", () => {
+      try {
+        const values = VendorQuantities.calculateAccepted(
+          elements.editForm.elements.receivedQuantity.value,
+          elements.editForm.elements.spoilageQuantity.value,
+        );
+        elements.editForm.elements.acceptedQuantity.value = values.accepted;
+        elements.editForm.elements.spoilageQuantity.setCustomValidity("");
+      } catch (error) {
+        elements.editForm.elements.acceptedQuantity.value = "";
+        elements.editForm.elements.spoilageQuantity.setCustomValidity(error.message);
+      }
+    }));
   elements.vendorList.addEventListener("click", handleVendorAction);
   elements.toggleVendorList.addEventListener("click", () => {
     vendorListOpen = !vendorListOpen;
@@ -373,7 +400,7 @@ function bindForms() {
 
   elements.deliveryForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    addEntryFromForm(event.currentTarget, "DELIVERED");
+    if (!addEntryFromForm(event.currentTarget, "DELIVERED")) return;
     event.currentTarget.reset();
     setDefaultDates();
     updateDeliveryVendorEmail();
@@ -382,7 +409,7 @@ function bindForms() {
 
   elements.adjustmentForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    addEntryFromForm(event.currentTarget, "SPOILED");
+    if (!addEntryFromForm(event.currentTarget, "SPOILED")) return;
     event.currentTarget.reset();
     setDefaultDates();
     showToast("Spoilage saved.");
@@ -390,7 +417,17 @@ function bindForms() {
 }
 
 function addEntryFromForm(form, type) {
-  const vendorId = resolveAkrabiId(form);
+  let vendorId;
+  let quantities;
+  try {
+    vendorId = resolveAkrabiId(form);
+    quantities = type === "DELIVERED"
+      ? VendorQuantities.calculateAccepted(form.elements.receivedQuantity.value, form.elements.spoilageQuantity.value)
+      : VendorQuantities.calculateAccepted(form.elements.quantity.value, form.elements.quantity.value);
+  } catch (error) {
+    showReceivingError(error.message);
+    return false;
+  }
   saveDeliveryVendorEmail(form, vendorId);
   const entry = {
     id: makeId(),
@@ -399,7 +436,10 @@ function addEntryFromForm(form, type) {
     vendorName: findVendor(vendorId).name,
     product: cleanName(form.elements.product.value),
     type,
-    quantity: Number(form.elements.quantity.value),
+    quantity: quantities.accepted,
+    receivedQuantity: quantities.received,
+    spoilageQuantity: quantities.spoilage,
+    acceptedQuantity: quantities.accepted,
     unit: form.elements.unit ? form.elements.unit.value : inferUnit(form.elements.product.value),
     unitPrice: Number(form.elements.unitPrice.value),
     note: form.elements.note ? form.elements.note.value.trim() : "",
@@ -414,6 +454,7 @@ function addEntryFromForm(form, type) {
   syncEntryToDatabase(entry)
     .then(showVendorEmailStatus)
     .catch((error) => showToast(`${actionLabel(type)} saved locally. ${error.message}`));
+  return true;
 }
 
 function render() {
@@ -422,6 +463,22 @@ function render() {
   renderDashboard();
   renderVendors();
   renderStatement();
+  renderSpoilageHistory();
+}
+
+function renderSpoilageHistory() {
+  const target = document.querySelector("#spoilageHistoryRows");
+  if (!target) return;
+  target.innerHTML = (state.spoilageHistory || []).map((item) => `
+    <tr>
+      <td>${formatCreatedAt(item.recordedAt)}</td>
+      <td>${escapeHtml(item.vendorName)}</td>
+      <td>${escapeHtml(item.product || "Unspecified product")}</td>
+      <td>${formatQty(item.receivedQuantity)}</td>
+      <td>${formatQty(item.spoilageQuantity)}</td>
+      <td>${formatQty(item.acceptedQuantity)}</td>
+      <td>${escapeHtml(item.recordedBy || "—")}</td>
+    </tr>`).join("") || emptyRow("No spoilage has been recorded.", 7);
 }
 
 function renderVendorOptions() {
@@ -439,13 +496,35 @@ function renderVendorOptions() {
   elements.akrabiOptions.innerHTML = state.vendors
     .map((vendor) => `<option value="${escapeHtml(vendor.name)}"></option>`)
     .join("");
+  document.querySelector("#receivingVendorOptions").innerHTML = state.vendors
+    .map((vendor) => `<option value="${escapeHtml(vendor.name)}">${escapeHtml([vendor.phone, vendor.email, vendor.id].filter(Boolean).join(" | "))}</option>`)
+    .join("");
 
 }
 
 function updateDeliveryVendorEmail() {
-  const vendorId = elements.deliveryForm.elements.vendorId.value;
-  const vendor = state.vendors.find((item) => item.id === vendorId);
+  const wanted = normalizeSearch(elements.deliveryForm.elements.vendorName.value);
+  const vendor = state.vendors.find((item) => normalizeSearch(item.name) === wanted);
   elements.deliveryForm.elements.vendorEmail.value = vendor?.email || "";
+}
+
+function updateAcceptedQuantity() {
+  const form = elements.deliveryForm;
+  try {
+    const values = VendorQuantities.calculateAccepted(form.elements.receivedQuantity.value, form.elements.spoilageQuantity.value);
+    form.elements.acceptedQuantity.value = values.accepted;
+    showReceivingError("");
+  } catch (error) {
+    form.elements.acceptedQuantity.value = "";
+    showReceivingError(error.message);
+  }
+}
+
+function showReceivingError(message) {
+  const error = document.querySelector("#receivingQuantityError");
+  error.textContent = message;
+  error.hidden = !message;
+  elements.deliveryForm.elements.spoilageQuantity.setCustomValidity(message || "");
 }
 
 function saveDeliveryVendorEmail(form, vendorId) {
@@ -462,16 +541,7 @@ function resolveAkrabiId(form) {
   const typedName = cleanName(form.elements.vendorName.value).toLowerCase();
   const vendor = state.vendors.find((item) => item.name.toLowerCase() === typedName);
   if (vendor) return vendor.id;
-
-  const newVendor = {
-    id: makeId(),
-    name: cleanName(form.elements.vendorName.value),
-    phone: "",
-    email: "",
-    paymentMethod: "Cash"
-  };
-  state.vendors.push(newVendor);
-  return newVendor.id;
+  throw new Error("Select a saved vendor from the searchable list.");
 }
 
 function renderDashboard() {
@@ -528,7 +598,9 @@ function renderHistory() {
           <td>${escapeHtml(vendor.name)}</td>
           <td>${escapeHtml(actionLabel(entry.type))}</td>
           <td><strong>${escapeHtml(entry.product)}</strong></td>
-          <td>${formatQty(entry.quantity)} ${escapeHtml(entry.unit)}</td>
+          <td>${formatQty(entry.receivedQuantity ?? entry.quantity)} ${escapeHtml(entry.unit)}</td>
+          <td>${formatQty(entry.spoilageQuantity || 0)} ${escapeHtml(entry.unit)}</td>
+          <td>${formatQty(entry.acceptedQuantity ?? entry.quantity)} ${escapeHtml(entry.unit)}</td>
           <td>${money.format(entry.unitPrice)}</td>
           <td class="${value < 0 ? "amount-warning" : "amount-positive"}">${money.format(value)}</td>
           <td>
@@ -540,7 +612,7 @@ function renderHistory() {
     })
     .join("");
 
-  elements.historyRows.innerHTML = rows || emptyRow("No saved records yet.", 9);
+  elements.historyRows.innerHTML = rows || emptyRow("No saved records yet.", 11);
 }
 
 function handleHistoryAction(event) {
@@ -591,7 +663,9 @@ function openEditDialog(entryId) {
   form.elements.id.value = entry.id;
   form.elements.date.value = entry.date;
   form.elements.product.value = entry.product;
-  form.elements.quantity.value = entry.quantity;
+  form.elements.receivedQuantity.value = entry.receivedQuantity ?? entry.quantity;
+  form.elements.spoilageQuantity.value = entry.spoilageQuantity || 0;
+  form.elements.acceptedQuantity.value = entry.acceptedQuantity ?? entry.quantity;
   form.elements.unit.value = entry.unit;
   form.elements.unitPrice.value = entry.unitPrice;
   form.elements.note.value = entry.note || "";
@@ -605,9 +679,21 @@ function saveEditedEntry() {
   const entry = state.entries.find((item) => item.id === form.elements.id.value);
   if (!entry) return;
 
+  let quantities;
+  try {
+    quantities = VendorQuantities.calculateAccepted(form.elements.receivedQuantity.value, form.elements.spoilageQuantity.value);
+  } catch (error) {
+    form.elements.spoilageQuantity.setCustomValidity(error.message);
+    form.reportValidity();
+    return;
+  }
+  form.elements.spoilageQuantity.setCustomValidity("");
   entry.date = form.elements.date.value;
   entry.product = cleanName(form.elements.product.value);
-  entry.quantity = Number(form.elements.quantity.value);
+  entry.receivedQuantity = quantities.received;
+  entry.spoilageQuantity = quantities.spoilage;
+  entry.acceptedQuantity = quantities.accepted;
+  entry.quantity = quantities.accepted;
   entry.unit = form.elements.unit.value;
   entry.unitPrice = Number(form.elements.unitPrice.value);
   entry.note = form.elements.note.value.trim();
@@ -774,7 +860,7 @@ function renderStatement() {
         </td>
         <td data-label="Type">${escapeHtml(actionLabel(entry.type))}</td>
         <td data-label="Product"><strong>${escapeHtml(entry.product)}</strong></td>
-        <td data-label="Recorded quantity"><strong>${formatQty(quantity)} ${escapeHtml(entry.unit)}</strong></td>
+        <td data-label="Quantities"><strong>${formatQty(entry.receivedQuantity ?? quantity)} / ${formatQty(entry.spoilageQuantity || 0)} / ${formatQty(entry.acceptedQuantity ?? quantity)} ${escapeHtml(entry.unit)}</strong></td>
         <td data-label="Unit price">${money.format(unitPrice)}</td>
         <td data-label="Amount" class="${amount < 0 ? "amount-warning" : "amount-positive"}">${money.format(amount)}</td>
         <td data-label="Status"><span class="status-pill ${payment ? "paid" : "unpaid"}">${paymentStatus}</span></td>
@@ -1186,10 +1272,10 @@ function exportStatementCsv() {
       formatDate(entry.date),
       formatCreatedAt(entry.createdAt),
       entry.product,
-      entry.type === "DELIVERED" ? entry.quantity : 0,
-      entry.type === "SPOILED" ? entry.quantity : 0,
+      entry.type === "DELIVERED" ? (entry.receivedQuantity ?? entry.quantity) : 0,
+      entry.type === "DELIVERED" ? (entry.spoilageQuantity || 0) : (entry.type === "SPOILED" ? entry.quantity : 0),
       entry.type === "RETURNED" ? entry.quantity : 0,
-      payableQty,
+      entry.type === "DELIVERED" ? (entry.acceptedQuantity ?? entry.quantity) : payableQty,
       entry.unit,
       (payableQty * entry.unitPrice).toFixed(2)
     ]);
@@ -1274,10 +1360,14 @@ function summarizeQuantitiesByUnit(entries) {
     if (!totals.has(unit)) totals.set(unit, { unit, received: 0, spoiled: 0, returned: 0, payable: 0 });
     const row = totals.get(unit);
     const quantity = Number(entry.quantity) || 0;
-    if (entry.type === "DELIVERED") row.received += quantity;
+    if (entry.type === "DELIVERED") {
+      row.received += Number(entry.receivedQuantity ?? quantity);
+      row.spoiled += Number(entry.spoilageQuantity || 0);
+      row.payable += Number(entry.acceptedQuantity ?? quantity);
+    }
     else if (entry.type === "SPOILED") row.spoiled += quantity;
     else if (entry.type === "RETURNED") row.returned += quantity;
-    row.payable = row.received - row.spoiled - row.returned;
+    if (entry.type !== "DELIVERED") row.payable = row.received - row.spoiled - row.returned;
   });
   return [...totals.values()].sort((a, b) => a.unit.localeCompare(b.unit));
 }
@@ -1296,9 +1386,14 @@ function calculateTotals(entries) {
       const value = entry.quantity * entry.unitPrice;
       if (entry.type === "DELIVERED") {
         totals.dates.push(entry.date);
-        totals.deliveredQty += entry.quantity;
-        totals.receivedValue += value;
-        totals.payableValue += value;
+        const received = Number(entry.receivedQuantity ?? entry.quantity);
+        const spoilage = Number(entry.spoilageQuantity || 0);
+        const accepted = Number(entry.acceptedQuantity ?? entry.quantity);
+        totals.deliveredQty += received;
+        totals.spoiledQty += spoilage;
+        totals.receivedValue += received * entry.unitPrice;
+        totals.spoiledValue += spoilage * entry.unitPrice;
+        totals.payableValue += accepted * entry.unitPrice;
       }
       if (entry.type === "SPOILED") {
         totals.dates.push(entry.date);

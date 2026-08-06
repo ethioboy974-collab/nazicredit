@@ -7,7 +7,7 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check order-notification-service.js && node --check order-workflow.js && node --check app.js && node --check barcode-printer.js && node --check quick-barcode.js && node --check create-order.js && node --check meat-orders.js && node --check completed-orders.js && node --check finance-dashboard.js && node --check vendor-tracking.js && node --check scripts/hash-password.js && node --check scripts/create-enterprise.js && node --check scripts/restore-cloud-backup.js",
+    "check": "node --check server.js && node --check vendor-quantities.js && node --check order-notification-service.js && node --check order-workflow.js && node --check app.js && node --check barcode-printer.js && node --check quick-barcode.js && node --check create-order.js && node --check meat-orders.js && node --check completed-orders.js && node --check finance-dashboard.js && node --check vendor-tracking.js && node --check scripts/hash-password.js && node --check scripts/create-enterprise.js && node --check scripts/restore-cloud-backup.js",
     "test": "node --test test/*.test.js",
     "hash-password": "node scripts/hash-password.js",
     "restore-cloud-backup": "node scripts/restore-cloud-backup.js"

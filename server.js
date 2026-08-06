@@ -12,6 +12,7 @@ const {
   DeleteObjectsCommand,
 } = require("@aws-sdk/client-s3");
 const mysql = require("mysql2/promise");
+const { calculateAccepted } = require("./vendor-quantities");
 const { createOrderNotificationService } = require("./order-notification-service");
 const {
   canResendOrderNotification,
@@ -1444,10 +1445,15 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/vendors/spoilage-history") {
+    sendJson(response, 200, { ok: true, history: await listVendorSpoilageHistory(session.enterpriseId) });
+    return;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/vendors") {
     requireRecordManager(session);
     const body = await readJsonBody(request);
-    const vendor = await upsertVendor(session.enterpriseId, normalizeVendorEntry(body));
+    const vendor = await upsertVendor(session, normalizeVendorEntry(body));
     await recordAudit(pool, session, {
       action: "vendor.saved",
       entityType: "vendor",
@@ -1888,6 +1894,7 @@ async function ensureSchema() {
       unit VARCHAR(40) NOT NULL DEFAULT 'piece',
       received_quantity INT NOT NULL DEFAULT 0,
       spoiled_quantity INT NOT NULL DEFAULT 0,
+      accepted_quantity INT NOT NULL DEFAULT 0,
       returned_quantity INT NOT NULL DEFAULT 0,
       phone VARCHAR(60) NULL,
       email VARCHAR(254) NULL,
@@ -1927,14 +1934,49 @@ async function ensureSchema() {
   );
   await addColumnIfMissing(
     "customer_credit_vendor_tracking",
-    "returned_quantity",
+    "accepted_quantity",
     "INT NOT NULL DEFAULT 0 AFTER spoiled_quantity",
+  );
+  await addColumnIfMissing(
+    "customer_credit_vendor_tracking",
+    "returned_quantity",
+    "INT NOT NULL DEFAULT 0 AFTER accepted_quantity",
   );
   await addColumnIfMissing(
     "customer_credit_vendor_tracking",
     "email",
     "VARCHAR(254) NULL AFTER phone",
   );
+  await pool.query(`
+    UPDATE customer_credit_vendor_tracking
+    SET received_quantity = quantity, accepted_quantity = quantity
+    WHERE received_quantity = 0 AND spoiled_quantity = 0 AND accepted_quantity = 0
+  `);
+  await pool.query(`
+    UPDATE customer_credit_vendor_tracking
+    SET accepted_quantity = GREATEST(received_quantity - spoiled_quantity, 0)
+    WHERE accepted_quantity = 0 AND received_quantity > spoiled_quantity
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_credit_vendor_spoilage_history (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      enterprise_id VARCHAR(64) NOT NULL,
+      receiving_id VARCHAR(64) NOT NULL,
+      vendor_name VARCHAR(160) NOT NULL,
+      product VARCHAR(120) NULL,
+      received_quantity INT NOT NULL,
+      spoilage_quantity INT NOT NULL,
+      accepted_quantity INT NOT NULL,
+      note VARCHAR(255) NULL,
+      recorded_by VARCHAR(160) NULL,
+      receiving_created_at DATETIME NOT NULL,
+      recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_vendor_spoilage_enterprise_date (enterprise_id, recorded_at),
+      INDEX idx_vendor_spoilage_receiving (receiving_id),
+      CONSTRAINT fk_vendor_spoilage_enterprise FOREIGN KEY (enterprise_id)
+        REFERENCES customer_credit_enterprises(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_credit_meat_orders (
@@ -3124,6 +3166,7 @@ async function listVendors(enterpriseId) {
       unit,
       received_quantity AS receivedQuantity,
       spoiled_quantity AS spoiledQuantity,
+      accepted_quantity AS acceptedQuantity,
       returned_quantity AS returnedQuantity,
       phone,
       email,
@@ -3147,6 +3190,7 @@ async function listVendors(enterpriseId) {
     unit: vendor.unit || "piece",
     receivedQuantity: validVendorCount(vendor.receivedQuantity),
     spoiledQuantity: validVendorCount(vendor.spoiledQuantity),
+    acceptedQuantity: validVendorCount(vendor.acceptedQuantity),
     returnedQuantity: validVendorCount(vendor.returnedQuantity),
     phone: vendor.phone || "",
     email: vendor.email || "",
@@ -3158,6 +3202,29 @@ async function listVendors(enterpriseId) {
     note: vendor.note || "",
     createdAt: toIsoLike(vendor.createdAt),
     updatedAt: toIsoLike(vendor.updatedAt),
+  }));
+}
+
+async function listVendorSpoilageHistory(enterpriseId) {
+  const [rows] = await pool.query(`
+    SELECT id, receiving_id AS receivingId, vendor_name AS vendorName, product,
+      received_quantity AS receivedQuantity, spoilage_quantity AS spoilageQuantity,
+      accepted_quantity AS acceptedQuantity, note, recorded_by AS recordedBy,
+      DATE_FORMAT(receiving_created_at, '%Y-%m-%dT%H:%i:%s') AS receivingCreatedAt,
+      DATE_FORMAT(recorded_at, '%Y-%m-%dT%H:%i:%s') AS recordedAt
+    FROM customer_credit_vendor_spoilage_history
+    WHERE enterprise_id = ?
+    ORDER BY recorded_at DESC, id DESC
+  `, [enterpriseId]);
+  return rows.map((row) => ({
+    ...row,
+    receivedQuantity: validVendorCount(row.receivedQuantity),
+    spoilageQuantity: validVendorCount(row.spoilageQuantity),
+    acceptedQuantity: validVendorCount(row.acceptedQuantity),
+    note: row.note || "",
+    recordedBy: row.recordedBy || "",
+    receivingCreatedAt: toIsoLike(row.receivingCreatedAt),
+    recordedAt: toIsoLike(row.recordedAt),
   }));
 }
 
@@ -3483,7 +3550,8 @@ function mapReportRow(row) {
   return { label: row.label, revenue, expenses, profit: revenue - expenses };
 }
 
-async function upsertVendor(enterpriseId, vendor) {
+async function upsertVendor(session, vendor) {
+  const enterpriseId = session.enterpriseId;
   const [existingRows] = await pool.query(
     "SELECT enterprise_id AS enterpriseId FROM customer_credit_vendor_tracking WHERE id = ? LIMIT 1",
     [vendor.id],
@@ -3495,8 +3563,8 @@ async function upsertVendor(enterpriseId, vendor) {
   await pool.query(
     `
       INSERT INTO customer_credit_vendor_tracking
-        (id, enterprise_id, vendor_name, contact_name, quantity, unit, received_quantity, spoiled_quantity, returned_quantity, phone, email, reference, amount, due_date, status, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, enterprise_id, vendor_name, contact_name, quantity, unit, received_quantity, spoiled_quantity, accepted_quantity, returned_quantity, phone, email, reference, amount, due_date, status, note, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         vendor_name = VALUES(vendor_name),
         contact_name = VALUES(contact_name),
@@ -3504,6 +3572,7 @@ async function upsertVendor(enterpriseId, vendor) {
         unit = VALUES(unit),
         received_quantity = VALUES(received_quantity),
         spoiled_quantity = VALUES(spoiled_quantity),
+        accepted_quantity = VALUES(accepted_quantity),
         returned_quantity = VALUES(returned_quantity),
         phone = VALUES(phone),
         email = VALUES(email),
@@ -3523,6 +3592,7 @@ async function upsertVendor(enterpriseId, vendor) {
       vendor.unit,
       vendor.receivedQuantity,
       vendor.spoiledQuantity,
+      vendor.acceptedQuantity,
       vendor.returnedQuantity,
       vendor.phone || null,
       vendor.email || null,
@@ -3536,6 +3606,18 @@ async function upsertVendor(enterpriseId, vendor) {
     ],
   );
 
+  if (vendor.spoiledQuantity > 0) {
+    await pool.query(
+      `INSERT INTO customer_credit_vendor_spoilage_history
+        (enterprise_id, receiving_id, vendor_name, product, received_quantity, spoilage_quantity,
+         accepted_quantity, note, recorded_by, receiving_created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [enterpriseId, vendor.id, vendor.vendorName, vendor.reference || null, vendor.receivedQuantity,
+       vendor.spoiledQuantity, vendor.acceptedQuantity, vendor.note || null,
+       session.username || session.displayName || null, toMysqlDateTime(vendor.createdAt)],
+    );
+  }
+
   const [rows] = await pool.query(
     `
       SELECT
@@ -3546,6 +3628,7 @@ async function upsertVendor(enterpriseId, vendor) {
         unit,
         received_quantity AS receivedQuantity,
         spoiled_quantity AS spoiledQuantity,
+        accepted_quantity AS acceptedQuantity,
         returned_quantity AS returnedQuantity,
         phone,
         email,
@@ -3571,6 +3654,7 @@ async function upsertVendor(enterpriseId, vendor) {
     unit: saved.unit || "piece",
     receivedQuantity: validVendorCount(saved.receivedQuantity),
     spoiledQuantity: validVendorCount(saved.spoiledQuantity),
+    acceptedQuantity: validVendorCount(saved.acceptedQuantity),
     returnedQuantity: validVendorCount(saved.returnedQuantity),
     phone: saved.phone || "",
     email: saved.email || "",
@@ -3902,8 +3986,8 @@ function normalizeVendorEntry(vendor) {
   const hasReceivedQuantity = vendor.receivedQuantity !== undefined || vendor.received !== undefined;
   const hasSpoiledQuantity = vendor.spoiledQuantity !== undefined || vendor.spoiled !== undefined;
   const hasReturnedQuantity = vendor.returnedQuantity !== undefined || vendor.returned !== undefined;
-  const requestedReceivedQuantity = hasReceivedQuantity ? validVendorCount(vendor.receivedQuantity ?? vendor.received) : 0;
-  const requestedSpoiledQuantity = hasSpoiledQuantity ? validVendorCount(vendor.spoiledQuantity ?? vendor.spoiled) : 0;
+  const requestedReceivedQuantity = hasReceivedQuantity ? strictVendorCount(vendor.receivedQuantity ?? vendor.received, "Received quantity") : 0;
+  const requestedSpoiledQuantity = hasSpoiledQuantity ? strictVendorCount(vendor.spoiledQuantity ?? vendor.spoiled, "Spoilage quantity") : 0;
   const requestedReturnedQuantity = hasReturnedQuantity ? validVendorCount(vendor.returnedQuantity ?? vendor.returned) : 0;
   const hasDirectionalQuantity = hasReceivedQuantity || hasSpoiledQuantity || hasReturnedQuantity;
   const derivedQuantity = Math.max(1, requestedReceivedQuantity, requestedSpoiledQuantity, requestedReturnedQuantity);
@@ -3911,12 +3995,11 @@ function normalizeVendorEntry(vendor) {
     vendor.quantity === undefined || vendor.quantity === null || String(vendor.quantity).trim() === ""
       ? derivedQuantity
       : validVendorQuantity(vendor.quantity);
-  const spoiledQuantity = Math.min(quantity, requestedSpoiledQuantity);
+  const quantities = calculateAccepted(requestedReceivedQuantity, requestedSpoiledQuantity);
+  const spoiledQuantity = quantities.spoilage;
   const returnedQuantity = Math.min(quantity, requestedReturnedQuantity);
-  const receivedQuantity = Math.min(
-    quantity,
-    hasDirectionalQuantity ? requestedReceivedQuantity : quantity,
-  );
+  const receivedQuantity = hasDirectionalQuantity ? quantities.received : quantity;
+  const acceptedQuantity = hasDirectionalQuantity ? quantities.accepted : quantity;
   return {
     id: requiredString(vendor.id || cryptoRandomId(), "Vendor id"),
     vendorName: requiredString(vendor.vendorName || vendor.name, "Vendor name").slice(0, 160),
@@ -3925,6 +4008,7 @@ function normalizeVendorEntry(vendor) {
     unit: String(vendor.unit || "piece").trim().slice(0, 40) || "piece",
     receivedQuantity,
     spoiledQuantity,
+    acceptedQuantity,
     returnedQuantity,
     phone: String(vendor.phone || "").trim().slice(0, 60),
     email: validOptionalEmail(vendor.email),
@@ -4071,6 +4155,14 @@ function validVendorCount(value) {
   return Math.min(MAX_VENDOR_QUANTITY, Math.max(0, quantity));
 }
 
+function strictVendorCount(value, label) {
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity) || quantity < 0 || quantity > MAX_VENDOR_QUANTITY) {
+    throw new Error(`${label} must be between 0 and ${MAX_VENDOR_QUANTITY}`);
+  }
+  return quantity;
+}
+
 function validVendorStatus(value) {
   const status = String(value || "ordered").trim().toLowerCase();
   return ["ordered", "received", "due", "paid"].includes(status) ? status : "ordered";
@@ -4095,7 +4187,7 @@ async function getAiDashboardMetrics(enterpriseId) {
       FROM customer_credit_finance_entries WHERE enterprise_id=? AND entry_date=CURDATE()`, [enterpriseId]),
     pool.query(`SELECT
       SUM(DATE(created_at)=CURDATE() AND status IN ('received','due','paid')) deliveriesToday,
-      COALESCE(SUM(CASE WHEN status <> 'paid' THEN amount ELSE 0 END),0) unpaidBalance
+      COALESCE(SUM(CASE WHEN status <> 'paid' THEN accepted_quantity * amount ELSE 0 END),0) unpaidBalance
       FROM customer_credit_vendor_tracking WHERE enterprise_id=?`, [enterpriseId]),
     pool.query(`SELECT
       SUM(status <> 'picked_up') activeOrders,

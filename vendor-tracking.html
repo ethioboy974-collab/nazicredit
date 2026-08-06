@@ -160,7 +160,9 @@
                     <th>Vendor</th>
                     <th>Action</th>
                     <th>Product</th>
-                    <th>Quantity</th>
+                    <th>Received</th>
+                    <th>Spoilage</th>
+                    <th>Accepted</th>
                     <th>Unit price (USD)</th>
                     <th>Value</th>
                     <th>Action</th>
@@ -184,7 +186,7 @@
               </label>
               <label>
                 Vendor
-                <select name="vendorId" required></select>
+                <input name="vendorName" type="search" list="receivingVendorOptions" placeholder="Search name, phone, email, or vendor ID" autocomplete="off" required />
               </label>
               <label>
                 Vendor email
@@ -195,9 +197,18 @@
                 <input name="product" type="text" required />
               </label>
               <label>
-                Quantity
-                <input name="quantity" type="number" min="0.01" step="0.01" required />
+                Received quantity
+                <input name="receivedQuantity" type="number" min="0" max="9999" step="1" required />
               </label>
+              <label>
+                Spoilage quantity
+                <input name="spoilageQuantity" type="number" min="0" max="9999" step="1" value="0" required />
+              </label>
+              <label>
+                Accepted quantity
+                <input name="acceptedQuantity" type="number" value="0" readonly aria-describedby="receivingQuantityError" />
+              </label>
+              <p class="form-error wide" id="receivingQuantityError" role="alert" hidden></p>
               <label>
                 Unit
                 <select name="unit" required>
@@ -259,6 +270,15 @@
               </label>
               <button class="primary-action danger" type="submit">Save spoilage</button>
             </form>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><h3>Permanent spoilage history</h3></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Recorded</th><th>Vendor</th><th>Product</th><th>Received</th><th>Spoilage</th><th>Accepted</th><th>Employee</th></tr></thead>
+                <tbody id="spoilageHistoryRows"></tbody>
+              </table>
+            </div>
           </section>
         </section>
 
@@ -369,7 +389,7 @@
                     <th>Date</th>
                     <th>Type</th>
                     <th>Product</th>
-                    <th>Qty</th>
+                    <th>Received / Spoilage / Accepted</th>
                     <th>Price</th>
                     <th>Amount</th>
                     <th>Status</th>
@@ -386,6 +406,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <datalist id="akrabiOptions"></datalist>
+    <datalist id="receivingVendorOptions"></datalist>
 
     <dialog class="edit-dialog" id="editDialog">
       <form id="editForm" class="entry-form edit-form" method="dialog">
@@ -403,8 +424,16 @@
           <input name="product" type="text" required />
         </label>
         <label>
-          Quantity
-          <input name="quantity" type="number" min="0.01" step="0.01" required />
+          Received quantity
+          <input name="receivedQuantity" type="number" min="0" max="9999" step="1" required />
+        </label>
+        <label>
+          Spoilage quantity
+          <input name="spoilageQuantity" type="number" min="0" max="9999" step="1" value="0" required />
+        </label>
+        <label>
+          Accepted quantity
+          <input name="acceptedQuantity" type="number" readonly />
         </label>
         <label>
           Unit
@@ -466,7 +495,8 @@
       </form>
     </dialog>
 
-    <script src="vendor-tracking.js?v=20260804-receive-email"></script>
+    <script src="vendor-quantities.js?v=20260805-vendor-receiving"></script>
+    <script src="vendor-tracking.js?v=20260805-vendor-receiving"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

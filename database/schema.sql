@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS customer_credit_vendor_tracking (
   unit VARCHAR(40) NOT NULL DEFAULT 'piece',
   received_quantity INT NOT NULL DEFAULT 0,
   spoiled_quantity INT NOT NULL DEFAULT 0,
+  accepted_quantity INT NOT NULL DEFAULT 0,
   returned_quantity INT NOT NULL DEFAULT 0,
   phone VARCHAR(60) NULL,
   email VARCHAR(254) NULL,
@@ -75,6 +76,25 @@ CREATE TABLE IF NOT EXISTS customer_credit_vendor_tracking (
   CONSTRAINT fk_customer_credit_vendor_enterprise
     FOREIGN KEY (enterprise_id) REFERENCES customer_credit_enterprises(id)
     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS customer_credit_vendor_spoilage_history (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enterprise_id VARCHAR(64) NOT NULL,
+  receiving_id VARCHAR(64) NOT NULL,
+  vendor_name VARCHAR(160) NOT NULL,
+  product VARCHAR(120) NULL,
+  received_quantity INT NOT NULL,
+  spoilage_quantity INT NOT NULL,
+  accepted_quantity INT NOT NULL,
+  note VARCHAR(255) NULL,
+  recorded_by VARCHAR(160) NULL,
+  receiving_created_at DATETIME NOT NULL,
+  recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_vendor_spoilage_enterprise_date (enterprise_id, recorded_at),
+  INDEX idx_vendor_spoilage_receiving (receiving_id),
+  CONSTRAINT fk_vendor_spoilage_enterprise FOREIGN KEY (enterprise_id)
+    REFERENCES customer_credit_enterprises(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS customer_credit_meat_orders (

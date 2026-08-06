@@ -633,6 +633,12 @@ td {
   padding: 0 18px 18px;
 }
 
+.form-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.9rem;
+}
+
 .compact-activity {
   gap: 8px;
   padding: 0 16px 16px;
