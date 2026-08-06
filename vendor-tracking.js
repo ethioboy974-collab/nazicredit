@@ -97,12 +97,10 @@ function applyAiVendorDraft() {
     form.elements.spoilageQuantity.value = d.spoilageQuantity ?? 0;
     if ([...form.elements.unit.options].some((o) => o.value === d.unit)) form.elements.unit.value = d.unit;
     form.elements.note.value = d.notes || "";
-    form.elements.vendorEmail.value = cleanEmail(d.vendorEmail || d.email || "");
     const wanted = String(d.vendorName || "").toLowerCase();
     const vendor = state.vendors.find((item) => item.name.toLowerCase().includes(wanted));
     if (vendor) form.elements.vendorName.value = vendor.name;
     updateAcceptedQuantity();
-    if (!form.elements.vendorEmail.value) updateDeliveryVendorEmail();
     showToast("AI draft loaded. Review it before saving.");
   } catch {}
 }
@@ -346,7 +344,6 @@ function bindNavigation() {
   });
 
   elements.statementSearch.addEventListener("input", renderStatement);
-  elements.deliveryForm.elements.vendorName.addEventListener("input", updateDeliveryVendorEmail);
   ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
     elements.deliveryForm.elements[name].addEventListener("input", updateAcceptedQuantity));
   elements.statementRows.addEventListener("click", handleStatementAction);
@@ -423,7 +420,6 @@ function bindForms() {
     if (!addEntryFromForm(event.currentTarget, "DELIVERED")) return;
     event.currentTarget.reset();
     setDefaultDates();
-    updateDeliveryVendorEmail();
     showToast("Delivery saved.");
   });
 
@@ -441,7 +437,6 @@ function addEntryFromForm(form, type) {
     showReceivingError(error.message);
     return false;
   }
-  saveDeliveryVendorEmail(form, vendorId);
   const entry = {
     id: makeId(),
     date: form.elements.date.value,
@@ -504,7 +499,6 @@ function renderVendorOptions() {
     select.innerHTML = options || '<option value="" disabled selected>Add vendor first</option>';
     if (selected) select.value = selected;
   });
-  updateDeliveryVendorEmail();
 
   elements.akrabiOptions.innerHTML = state.vendors
     .map((vendor) => `<option value="${escapeHtml(vendor.name)}"></option>`)
@@ -513,12 +507,6 @@ function renderVendorOptions() {
     .map((vendor) => `<option value="${escapeHtml(vendor.name)}">${escapeHtml([vendor.phone, vendor.email, vendor.id].filter(Boolean).join(" | "))}</option>`)
     .join("");
 
-}
-
-function updateDeliveryVendorEmail() {
-  const wanted = normalizeSearch(elements.deliveryForm.elements.vendorName.value);
-  const vendor = state.vendors.find((item) => normalizeSearch(item.name) === wanted);
-  elements.deliveryForm.elements.vendorEmail.value = vendor?.email || "";
 }
 
 function updateAcceptedQuantity() {
@@ -538,14 +526,6 @@ function showReceivingError(message) {
   error.textContent = message;
   error.hidden = !message;
   elements.deliveryForm.elements.spoilageQuantity.setCustomValidity(message || "");
-}
-
-function saveDeliveryVendorEmail(form, vendorId) {
-  if (!form.elements.vendorEmail) return;
-  const email = cleanEmail(form.elements.vendorEmail.value);
-  if (!email) return;
-  const vendor = state.vendors.find((item) => item.id === vendorId);
-  if (vendor) vendor.email = email;
 }
 
 function resolveAkrabiId(form) {
