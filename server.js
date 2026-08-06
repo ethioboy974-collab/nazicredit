@@ -1625,6 +1625,13 @@ async function handleApiRequest(request, response, requestUrl, session) {
     sendJson(response, result.created ? 201 : 200, { ok: true, ...result });
     return;
   }
+  const vendorPasswordResetMatch = requestUrl.pathname.match(/^\/api\/vendor-accounts\/([^/]+)\/reset-password$/);
+  if (request.method === "POST" && vendorPasswordResetMatch) {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true,
+      ...(await resetVendorPortalPassword(session, decodeURIComponent(vendorPasswordResetMatch[1]))) });
+    return;
+  }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/vendors/spoilage-history") {
     sendJson(response, 200, { ok: true, history: await listVendorSpoilageHistory(session.enterpriseId) });
@@ -3523,6 +3530,23 @@ async function createVendorAccount(session, body) {
     entityId: id, summary: `Created portal login for ${vendorName}` });
   return { created: true, temporaryPassword,
     vendor: (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === id) };
+}
+
+async function resetVendorPortalPassword(session, vendorAccountId) {
+  const [rows] = await pool.query(`SELECT id, vendor_name AS vendorName, phone, email
+    FROM customer_credit_vendor_accounts WHERE id = ? AND enterprise_id = ? LIMIT 1`,
+  [String(vendorAccountId || "").slice(0, 64), session.enterpriseId]);
+  if (!rows.length) throw httpError(404, "Vendor portal account not found");
+  const temporaryPassword = createTemporaryVendorPassword();
+  await pool.query(`UPDATE customer_credit_vendor_accounts
+    SET password_hash = ?, session_version = session_version + 1, updated_at = ?
+    WHERE id = ? AND enterprise_id = ?`,
+  [await hashPassword(temporaryPassword), toMysqlDateTime(new Date().toISOString()),
+    rows[0].id, session.enterpriseId]);
+  await recordAudit(pool, session, { action: "vendor.password_reset", entityType: "vendor_account",
+    entityId: rows[0].id, summary: `Reset portal password for ${rows[0].vendorName}` });
+  return { temporaryPassword, vendor: { id: rows[0].id, vendorName: rows[0].vendorName,
+    phone: rows[0].phone || "", email: rows[0].email || "" } };
 }
 
 async function getVendorPortalData(session) {

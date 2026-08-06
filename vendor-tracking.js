@@ -726,6 +726,7 @@ function renderVendors() {
         <span>${escapeHtml(vendorContactLine(vendor))}</span>
         <div class="vendor-actions">
           <button class="text-action" data-print-vendor="${vendor.id}" type="button">Print report</button>
+          <button class="text-action" data-reset-vendor-password="${vendor.id}" type="button">Reset portal password</button>
           <button class="text-action" data-edit-vendor="${vendor.id}" type="button">Edit</button>
           <button class="text-action danger-text" data-delete-vendor="${vendor.id}" type="button">Delete</button>
         </div>
@@ -737,6 +738,11 @@ function renderVendors() {
 }
 
 function handleVendorAction(event) {
+  const resetButton = event.target.closest("[data-reset-vendor-password]");
+  if (resetButton) {
+    resetVendorPassword(resetButton.dataset.resetVendorPassword);
+    return;
+  }
   const printButton = event.target.closest("[data-print-vendor]");
   if (printButton) {
     printVendorReport(printButton.dataset.printVendor);
@@ -766,6 +772,23 @@ function handleVendorAction(event) {
   form.elements.phone.value = vendor.phone || "";
   form.elements.paymentMethod.value = vendor.paymentMethod;
   elements.vendorDialog.showModal();
+}
+
+async function resetVendorPassword(vendorId) {
+  if (!isAdmin()) { showToast("Only the owner can reset vendor passwords."); return; }
+  const vendor = state.vendors.find((item) => item.id === vendorId);
+  if (!vendor) return;
+  if (!window.confirm(`Reset the portal password for ${vendor.name}? Their old password will stop working.`)) return;
+  try {
+    const result = await databaseRequest(`/vendor-accounts/${encodeURIComponent(vendorId)}/reset-password`, {
+      method: "POST", body: "{}",
+    });
+    const notice = document.querySelector("#vendorCredentialNotice");
+    notice.hidden = false;
+    notice.innerHTML = `Vendor portal password reset. Store code: <strong>${escapeHtml(accessState.enterpriseCode || "your store code")}</strong>. Login: <strong>${escapeHtml(result.vendor.phone || result.vendor.email)}</strong>. Temporary password: <strong>${escapeHtml(result.temporaryPassword)}</strong>. Portal: <strong>/vendor-login</strong>`;
+    notice.scrollIntoView({ behavior: "smooth", block: "center" });
+    showToast("New temporary vendor password created.");
+  } catch (error) { showToast(error.message); }
 }
 
 function deleteVendor(vendorId) {
