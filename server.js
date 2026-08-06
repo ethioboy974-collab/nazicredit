@@ -1574,6 +1574,14 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/vendors/mark-unpaid") {
+    requireRecordManager(session);
+    const body = await readJsonBody(request);
+    const result = await setVendorsUnpaid(session, body.ids);
+    sendJson(response, 200, { ok: true, ...result, vendors: await listVendors(session.enterpriseId) });
+    return;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/vendors/clear-paid") {
     requireRecordManager(session);
     const body = await readJsonBody(request);
@@ -3973,6 +3981,20 @@ async function markVendorsPaid(session, vendorIds) {
     });
   }
 
+  return { updated: result.affectedRows };
+}
+
+async function setVendorsUnpaid(session, vendorIds) {
+  const ids = [...new Set((Array.isArray(vendorIds) ? vendorIds : [])
+    .map((id) => String(id || "").trim()).filter((id) => id.length > 0 && id.length <= 128))].slice(0, 1000);
+  if (!ids.length) throw new Error("Choose at least one vendor delivery to mark unpaid");
+  const placeholders = ids.map(() => "?").join(", ");
+  const [result] = await pool.query(`UPDATE customer_credit_vendor_tracking
+    SET status = 'due', updated_at = ?
+    WHERE enterprise_id = ? AND id IN (${placeholders}) AND status = 'paid'`,
+  [toMysqlDateTime(new Date().toISOString()), session.enterpriseId, ...ids]);
+  if (result.affectedRows) await recordAudit(pool, session, { action: "vendor.marked_unpaid",
+    entityType: "vendor", entityId: ids[0], summary: `Marked ${result.affectedRows} vendor deliveries unpaid` });
   return { updated: result.affectedRows };
 }
 

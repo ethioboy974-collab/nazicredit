@@ -178,7 +178,8 @@ async function loadDatabaseState() {
       unitPrice: Number(delivery.amount || 0),
       note: delivery.note || "",
       createdAt: delivery.createdAt || delivery.updatedAt || new Date().toISOString(),
-      databaseId: delivery.id
+      databaseId: delivery.id,
+      status: delivery.status || "due"
     };
     const legacyQuantity = Number(delivery.quantity || 0);
     const received = Number(delivery.receivedQuantity ?? legacyQuantity);
@@ -938,7 +939,7 @@ function toggleAllStatementRows() {
   renderPaymentStatus();
 }
 
-function paySelectedStatementRows() {
+async function paySelectedStatementRows() {
   if (!isAdmin()) {
     showToast("Only an admin can mark payments paid.");
     return;
@@ -949,6 +950,18 @@ function paySelectedStatementRows() {
   if (!vendorIds.length) {
     showToast("Select at least one statement row to pay.");
     return;
+  }
+  const databaseIds = [...new Set(selectedEntries.map((entry) => entry.databaseId).filter(Boolean))];
+  if (databaseIds.length) {
+    try {
+      await databaseRequest("/vendors/mark-paid", {
+        method: "POST",
+        body: JSON.stringify({ ids: databaseIds }),
+      });
+    } catch (error) {
+      showToast(error.message);
+      return;
+    }
   }
 
   vendorIds.forEach((vendorId) => {
@@ -978,6 +991,7 @@ function paySelectedStatementRows() {
       });
     }
   });
+  selectedEntries.forEach((entry) => { entry.status = "paid"; });
 
   saveState();
   renderStatement();
@@ -1055,6 +1069,7 @@ function renderPaymentStatus() {
 }
 
 function isEntryPaid(entry) {
+  if (entry.status === "paid") return true;
   const payment = state.payments.find((item) =>
     item.vendorId === entry.vendorId && item.month === entry.date.slice(0, 7));
   return Boolean(payment && (!Array.isArray(payment.entryIds) || payment.entryIds.includes(String(entry.id))));
@@ -1177,7 +1192,7 @@ function markSelectedVendorPaid() {
   showToast("Payment marked paid.");
 }
 
-function markSelectedVendorUnpaid() {
+async function markSelectedVendorUnpaid() {
   if (!isAdmin()) {
     showToast("Only an admin can change payment status.");
     return;
@@ -1188,6 +1203,18 @@ function markSelectedVendorUnpaid() {
   if (!selectedEntries.length) {
     showToast("Select at least one paid row.");
     return;
+  }
+  const databaseIds = [...new Set(selectedEntries.map((entry) => entry.databaseId).filter(Boolean))];
+  if (databaseIds.length) {
+    try {
+      await databaseRequest("/vendors/mark-unpaid", {
+        method: "POST",
+        body: JSON.stringify({ ids: databaseIds }),
+      });
+    } catch (error) {
+      showToast(error.message);
+      return;
+    }
   }
 
   const vendorIds = [...new Set(selectedEntries.map((entry) => entry.vendorId))];
@@ -1208,6 +1235,7 @@ function markSelectedVendorUnpaid() {
       state.payments = state.payments.filter((item) => item !== payment);
     }
   });
+  selectedEntries.forEach((entry) => { entry.status = "due"; });
 
   saveState();
   renderStatement();
