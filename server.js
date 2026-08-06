@@ -229,6 +229,7 @@ async function createCloudBackup() {
         "customer_credit_enterprises",
       ),
       customer_credit_users: await selectBackupRows(connection, "customer_credit_users"),
+      customer_credit_time_entries: await selectBackupRows(connection, "customer_credit_time_entries"),
       customer_credit_products: await selectBackupRows(connection, "customer_credit_products"),
       customer_credit_barcode_print_events: await selectBackupRows(
         connection,
@@ -315,9 +316,20 @@ async function selectBackupRows(connection, tableName) {
   const allowedTables = new Set([
     "customer_credit_enterprises",
     "customer_credit_users",
+    "customer_credit_time_entries",
     "customer_credit_products",
     "customer_credit_barcode_print_events",
     "customer_credit_vendor_tracking",
+    "customer_credit_vendor_accounts",
+    "customer_credit_vendor_spoilage_history",
+    "customer_credit_meat_orders",
+    "customer_credit_meat_order_items",
+    "customer_credit_finance_entries",
+    "customer_credit_records",
+    "customer_credit_payments",
+    "customer_credit_signup_invites",
+    "customer_credit_audit_log",
+    "customer_credit_password_reset_tokens",
     "customer_credit_email_verification_tokens",
   ]);
   if (!allowedTables.has(tableName)) {
@@ -1332,6 +1344,25 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/time-clock") {
+    sendJson(response, 200, { ok: true, ...(await getTimeClockData(session)) });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/in") {
+    if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking in");
+    const shift = await clockEmployeeIn(session);
+    sendJson(response, 201, { ok: true, shift });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/out") {
+    if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking out");
+    const shift = await clockEmployeeOut(session);
+    sendJson(response, 200, { ok: true, shift });
+    return;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/vendor-statements/access") {
     requireOwnerPin(session);
     sendJson(response, 200, { ok: true });
@@ -1956,6 +1987,24 @@ async function ensureSchema() {
     "uq_customer_credit_user_enterprise_email",
     "ADD UNIQUE INDEX uq_customer_credit_user_enterprise_email (enterprise_id, email)",
   );
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_credit_time_entries (
+      id VARCHAR(64) PRIMARY KEY,
+      enterprise_id VARCHAR(64) NOT NULL,
+      user_id VARCHAR(64) NOT NULL,
+      clock_in DATETIME NOT NULL,
+      clock_out DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_time_entries_enterprise_clock (enterprise_id, clock_in),
+      INDEX idx_time_entries_user_clock (user_id, clock_in),
+      CONSTRAINT fk_time_entries_enterprise FOREIGN KEY (enterprise_id)
+        REFERENCES customer_credit_enterprises(id) ON DELETE CASCADE,
+      CONSTRAINT fk_time_entries_user FOREIGN KEY (user_id)
+        REFERENCES customer_credit_users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   const defaultEnterprise = await ensureDefaultEnterprise();
 
@@ -4088,6 +4137,79 @@ async function listRecords(enterpriseId) {
     createdAt: toIsoLike(record.createdAt),
     updatedAt: toIsoLike(record.updatedAt),
   }));
+}
+
+async function getTimeClockData(session) {
+  const [ownRows] = await pool.query(`SELECT id,
+      DATE_FORMAT(clock_in, '%Y-%m-%dT%H:%i:%s') AS clockIn,
+      DATE_FORMAT(clock_out, '%Y-%m-%dT%H:%i:%s') AS clockOut
+    FROM customer_credit_time_entries
+    WHERE enterprise_id = ? AND user_id = ?
+    ORDER BY clock_in DESC LIMIT 100`, [session.enterpriseId, session.userId]);
+  let teamRows = [];
+  if (session.role === "owner") {
+    [teamRows] = await pool.query(`SELECT entry.id, users.display_name AS employeeName, users.username,
+        DATE_FORMAT(entry.clock_in, '%Y-%m-%dT%H:%i:%s') AS clockIn,
+        DATE_FORMAT(entry.clock_out, '%Y-%m-%dT%H:%i:%s') AS clockOut
+      FROM customer_credit_time_entries entry
+      INNER JOIN customer_credit_users users
+        ON users.id = entry.user_id AND users.enterprise_id = entry.enterprise_id
+      WHERE entry.enterprise_id = ?
+      ORDER BY entry.clock_in DESC LIMIT 500`, [session.enterpriseId]);
+  }
+  const normalize = (row) => ({ ...row, clockIn: toIsoLike(row.clockIn),
+    clockOut: row.clockOut ? toIsoLike(row.clockOut) : null });
+  const ownEntries = ownRows.map(normalize);
+  return { user: { username: session.username, role: publicRole(session.role) },
+    activeShift: ownEntries.find((entry) => !entry.clockOut) || null,
+    ownEntries, teamEntries: teamRows.map(normalize), canViewTeam: session.role === "owner" };
+}
+
+async function clockEmployeeIn(session) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [open] = await connection.query(`SELECT id FROM customer_credit_time_entries
+      WHERE enterprise_id = ? AND user_id = ? AND clock_out IS NULL LIMIT 1 FOR UPDATE`,
+    [session.enterpriseId, session.userId]);
+    if (open.length) throw httpError(409, "You are already clocked in");
+    const id = cryptoRandomId();
+    const now = toMysqlDateTime(new Date().toISOString());
+    await connection.query(`INSERT INTO customer_credit_time_entries
+      (id, enterprise_id, user_id, clock_in) VALUES (?, ?, ?, ?)`,
+    [id, session.enterpriseId, session.userId, now]);
+    await recordAudit(connection, session, { action: "time_clock.clocked_in", entityType: "time_entry",
+      entityId: id, summary: `${session.username} clocked in` });
+    await connection.commit();
+    return { id, clockIn: toIsoLike(now), clockOut: null };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
+}
+
+async function clockEmployeeOut(session) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [open] = await connection.query(`SELECT id,
+        DATE_FORMAT(clock_in, '%Y-%m-%dT%H:%i:%s') AS clockIn
+      FROM customer_credit_time_entries
+      WHERE enterprise_id = ? AND user_id = ? AND clock_out IS NULL
+      ORDER BY clock_in DESC LIMIT 1 FOR UPDATE`, [session.enterpriseId, session.userId]);
+    if (!open.length) throw httpError(409, "You are not clocked in");
+    const now = toMysqlDateTime(new Date().toISOString());
+    await connection.query(`UPDATE customer_credit_time_entries SET clock_out = ?, updated_at = ?
+      WHERE id = ? AND enterprise_id = ? AND user_id = ? AND clock_out IS NULL`,
+    [now, now, open[0].id, session.enterpriseId, session.userId]);
+    await recordAudit(connection, session, { action: "time_clock.clocked_out", entityType: "time_entry",
+      entityId: open[0].id, summary: `${session.username} clocked out` });
+    await connection.commit();
+    return { id: open[0].id, clockIn: toIsoLike(open[0].clockIn), clockOut: toIsoLike(now) };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally { connection.release(); }
 }
 
 async function saveRecords(session, records, audit) {

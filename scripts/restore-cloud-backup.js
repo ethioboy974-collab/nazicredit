@@ -36,6 +36,10 @@ const tableDefinitions = [
     ],
   },
   {
+    name: "customer_credit_time_entries",
+    columns: ["id", "enterprise_id", "user_id", "clock_in", "clock_out", "created_at", "updated_at"],
+  },
+  {
     name: "customer_credit_products",
     columns: [
       "id",
@@ -265,6 +269,7 @@ async function main() {
     await connection.query("DELETE FROM customer_credit_vendor_tracking");
     await connection.query("DELETE FROM customer_credit_vendor_accounts");
     await connection.query("DELETE FROM customer_credit_products");
+    await connection.query("DELETE FROM customer_credit_time_entries");
     await connection.query("DELETE FROM customer_credit_users");
     await connection.query("DELETE FROM customer_credit_enterprises");
 
@@ -355,6 +360,9 @@ function validateBackup(backup) {
       ) &&
       !Array.isArray(backup.tables[table.name])
     ) {
+      backup.tables[table.name] = [];
+    }
+    if (table.name === "customer_credit_time_entries" && !Array.isArray(backup.tables[table.name])) {
       backup.tables[table.name] = [];
     }
     if (!Array.isArray(backup.tables[table.name])) {
