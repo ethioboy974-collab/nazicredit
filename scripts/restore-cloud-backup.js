@@ -50,16 +50,28 @@ const tableDefinitions = [
     ],
   },
   {
+    name: "customer_credit_vendor_accounts",
+    columns: [
+      "id", "enterprise_id", "vendor_name", "phone", "phone_normalized", "email",
+      "email_normalized", "password_hash", "session_version", "status", "created_at", "updated_at",
+    ],
+  },
+  {
     name: "customer_credit_vendor_tracking",
     columns: [
       "id",
       "enterprise_id",
+      "vendor_account_id",
       "vendor_name",
       "contact_name",
       "quantity",
+      "unit",
       "received_quantity",
       "spoiled_quantity",
+      "accepted_quantity",
+      "returned_quantity",
       "phone",
+      "email",
       "reference",
       "amount",
       "due_date",
@@ -67,6 +79,13 @@ const tableDefinitions = [
       "note",
       "created_at",
       "updated_at",
+    ],
+  },
+  {
+    name: "customer_credit_vendor_spoilage_history",
+    columns: [
+      "id", "enterprise_id", "receiving_id", "vendor_name", "product", "received_quantity",
+      "spoilage_quantity", "accepted_quantity", "note", "recorded_by", "receiving_created_at", "recorded_at",
     ],
   },
   {
@@ -242,7 +261,9 @@ async function main() {
     await connection.query("DELETE FROM customer_credit_records");
     await connection.query("DELETE FROM customer_credit_meat_orders");
     await connection.query("DELETE FROM customer_credit_finance_entries");
+    await connection.query("DELETE FROM customer_credit_vendor_spoilage_history");
     await connection.query("DELETE FROM customer_credit_vendor_tracking");
+    await connection.query("DELETE FROM customer_credit_vendor_accounts");
     await connection.query("DELETE FROM customer_credit_products");
     await connection.query("DELETE FROM customer_credit_users");
     await connection.query("DELETE FROM customer_credit_enterprises");

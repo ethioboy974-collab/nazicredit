@@ -13,6 +13,11 @@ const {
 } = require("@aws-sdk/client-s3");
 const mysql = require("mysql2/promise");
 const { calculateAccepted } = require("./vendor-quantities");
+const {
+  calculateVendorPortalSummary,
+  normalizeVendorEmail,
+  normalizeVendorPhone,
+} = require("./vendor-portal-security");
 const { createOrderNotificationService } = require("./order-notification-service");
 const {
   canResendOrderNotification,
@@ -233,6 +238,14 @@ async function createCloudBackup() {
         connection,
         "customer_credit_vendor_tracking",
       ),
+      customer_credit_vendor_accounts: await selectBackupRows(
+        connection,
+        "customer_credit_vendor_accounts",
+      ),
+      customer_credit_vendor_spoilage_history: await selectBackupRows(
+        connection,
+        "customer_credit_vendor_spoilage_history",
+      ),
       customer_credit_meat_orders: await selectBackupRows(
         connection,
         "customer_credit_meat_orders",
@@ -305,14 +318,6 @@ async function selectBackupRows(connection, tableName) {
     "customer_credit_products",
     "customer_credit_barcode_print_events",
     "customer_credit_vendor_tracking",
-    "customer_credit_meat_orders",
-    "customer_credit_meat_order_items",
-    "customer_credit_finance_entries",
-    "customer_credit_records",
-    "customer_credit_payments",
-    "customer_credit_signup_invites",
-    "customer_credit_audit_log",
-    "customer_credit_password_reset_tokens",
     "customer_credit_email_verification_tokens",
   ]);
   if (!allowedTables.has(tableName)) {
@@ -408,6 +413,42 @@ async function handleRequest(request, response) {
 
     if (requestUrl.pathname === "/login") {
       await handleLoginRequest(request, response, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === "/vendor-login") {
+      await handleVendorLoginRequest(request, response, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === "/vendor-logout" || requestUrl.pathname === "/api/vendor-portal/logout") {
+      clearVendorSession(response);
+      if (requestUrl.pathname.startsWith("/api/")) sendJson(response, 200, { ok: true });
+      else redirect(response, "/vendor-login");
+      return;
+    }
+
+    if (requestUrl.pathname === "/vendor-portal" || requestUrl.pathname === "/vendor-portal.html"
+        || requestUrl.pathname === "/vendor-portal.css" || requestUrl.pathname === "/vendor-portal.js"
+        || requestUrl.pathname.startsWith("/api/vendor-portal/")) {
+      const signedVendorSession = getVendorSession(request);
+      const vendorSession = signedVendorSession ? await refreshVendorSessionAccess(signedVendorSession) : null;
+      if (!vendorSession) {
+        if (signedVendorSession) clearVendorSession(response);
+        if (requestUrl.pathname.startsWith("/api/")) sendJson(response, 401, { ok: false, error: "Vendor login required" });
+        else redirect(response, "/vendor-login");
+        return;
+      }
+      if (requestUrl.pathname === "/api/vendor-portal/data" && request.method === "GET") {
+        sendJson(response, 200, { ok: true, ...(await getVendorPortalData(vendorSession)) });
+        return;
+      }
+      if (requestUrl.pathname.startsWith("/api/")) {
+        sendJson(response, 405, { ok: false, error: "Vendor portal is read-only" });
+        return;
+      }
+      if (requestUrl.pathname === "/vendor-portal") requestUrl.pathname = "/vendor-portal.html";
+      await serveStaticFile(requestUrl, response);
       return;
     }
 
@@ -547,6 +588,47 @@ async function handleLoginRequest(request, response, requestUrl) {
   });
   setSession(response, user);
   redirect(response, "/index.html");
+}
+
+async function handleVendorLoginRequest(request, response, requestUrl) {
+  if (request.method === "GET") {
+    const signed = getVendorSession(request);
+    if (signed && (await refreshVendorSessionAccess(signed))) {
+      redirect(response, "/vendor-portal");
+      return;
+    }
+    if (signed) clearVendorSession(response);
+    sendVendorLoginPage(response, "", {
+      enterpriseCode: requestUrl.searchParams.get("enterprise") || "",
+      login: requestUrl.searchParams.get("login") || "",
+    });
+    return;
+  }
+  if (request.method !== "POST") {
+    sendVendorLoginPage(response, "Use the vendor login form to continue.");
+    return;
+  }
+
+  const clientKey = `vendor:${getClientKey(request)}`;
+  const rateLimit = getLoginRateLimit(clientKey);
+  if (rateLimit.locked) {
+    sendVendorLoginPage(response, `Too many attempts. Try again in ${rateLimit.minutesLeft} minute(s).`);
+    return;
+  }
+  const body = await readRawBody(request);
+  const params = Object.fromEntries(new URLSearchParams(body));
+  const enterpriseCode = normalizeEnterpriseCode(params.enterprise || "");
+  const login = String(params.login || "").trim();
+  const account = await findVendorAccountForLogin(enterpriseCode, login);
+  if (!account || account.enterpriseStatus !== "active" || account.status !== "active"
+      || !(await passwordMatches(params.password || "", account.passwordHash))) {
+    recordFailedLogin(clientKey);
+    sendVendorLoginPage(response, "Wrong store code, phone/email, or password.", { enterpriseCode, login });
+    return;
+  }
+  clearLoginAttempts(clientKey);
+  setVendorSession(response, account);
+  redirect(response, "/vendor-portal");
 }
 
 async function handleSignupRequest(request, response) {
@@ -1445,6 +1527,19 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/vendor-accounts") {
+    sendJson(response, 200, { ok: true, vendors: await listVendorAccounts(session.enterpriseId) });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/vendor-accounts") {
+    requireRecordManager(session);
+    const body = await readJsonBody(request);
+    const result = await createVendorAccount(session, body);
+    sendJson(response, result.created ? 201 : 200, { ok: true, ...result });
+    return;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/vendors/spoilage-history") {
     sendJson(response, 200, { ok: true, history: await listVendorSpoilageHistory(session.enterpriseId) });
     return;
@@ -1885,9 +1980,32 @@ async function ensureSchema() {
   );
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_credit_vendor_accounts (
+      id VARCHAR(64) PRIMARY KEY,
+      enterprise_id VARCHAR(64) NOT NULL,
+      vendor_name VARCHAR(160) NOT NULL,
+      phone VARCHAR(60) NULL,
+      phone_normalized VARCHAR(60) NULL,
+      email VARCHAR(254) NULL,
+      email_normalized VARCHAR(254) NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      session_version INT NOT NULL DEFAULT 1,
+      status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_vendor_account_enterprise_phone (enterprise_id, phone_normalized),
+      UNIQUE KEY uq_vendor_account_enterprise_email (enterprise_id, email_normalized),
+      INDEX idx_vendor_account_enterprise_name (enterprise_id, vendor_name),
+      CONSTRAINT fk_vendor_account_enterprise FOREIGN KEY (enterprise_id)
+        REFERENCES customer_credit_enterprises(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_credit_vendor_tracking (
       id VARCHAR(64) PRIMARY KEY,
       enterprise_id VARCHAR(64) NOT NULL,
+      vendor_account_id VARCHAR(64) NULL,
       vendor_name VARCHAR(160) NOT NULL,
       contact_name VARCHAR(160) NULL,
       quantity INT NOT NULL DEFAULT 1,
@@ -1912,6 +2030,16 @@ async function ensureSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await addColumnIfMissing(
+    "customer_credit_vendor_tracking",
+    "vendor_account_id",
+    "VARCHAR(64) NULL AFTER enterprise_id",
+  );
+  await addIndexIfMissing(
+    "customer_credit_vendor_tracking",
+    "idx_vendor_tracking_account",
+    "ADD INDEX idx_vendor_tracking_account (enterprise_id, vendor_account_id)",
+  );
   await addColumnIfMissing(
     "customer_credit_vendor_tracking",
     "quantity",
@@ -3160,6 +3288,7 @@ async function listVendors(enterpriseId) {
   const [vendors] = await pool.query(`
     SELECT
       id,
+      vendor_account_id AS vendorAccountId,
       vendor_name AS vendorName,
       contact_name AS contactName,
       quantity,
@@ -3184,6 +3313,7 @@ async function listVendors(enterpriseId) {
 
   return vendors.map((vendor) => ({
     id: vendor.id,
+    vendorAccountId: vendor.vendorAccountId || "",
     vendorName: vendor.vendorName,
     contactName: vendor.contactName || "",
     quantity: validVendorQuantity(vendor.quantity),
@@ -3203,6 +3333,106 @@ async function listVendors(enterpriseId) {
     createdAt: toIsoLike(vendor.createdAt),
     updatedAt: toIsoLike(vendor.updatedAt),
   }));
+}
+
+async function listVendorAccounts(enterpriseId) {
+  const [rows] = await pool.query(`
+    SELECT id, vendor_name AS vendorName, phone, email, status,
+      DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS createdAt
+    FROM customer_credit_vendor_accounts
+    WHERE enterprise_id = ?
+    ORDER BY vendor_name, created_at
+  `, [enterpriseId]);
+  return rows.map((row) => ({ ...row, phone: row.phone || "", email: row.email || "",
+    createdAt: toIsoLike(row.createdAt) }));
+}
+
+async function createVendorAccount(session, body) {
+  const vendorName = requiredString(body.vendorName || body.name, "Vendor name").slice(0, 160);
+  const phone = String(body.phone || "").trim().slice(0, 60);
+  const email = normalizeVendorEmail(body.email).slice(0, 254);
+  const phoneNormalized = normalizeVendorPhone(phone);
+  if (!phoneNormalized && !email) throw httpError(400, "A phone number or email is required for vendor login");
+  if (email && !isValidEmail(email)) throw httpError(400, "Enter a valid vendor email address");
+
+  const [existingRows] = await pool.query(`
+    SELECT id FROM customer_credit_vendor_accounts
+    WHERE enterprise_id = ? AND ((? <> '' AND phone_normalized = ?) OR (? <> '' AND email_normalized = ?))
+    LIMIT 1
+  `, [session.enterpriseId, phoneNormalized, phoneNormalized, email, email]);
+  if (existingRows.length) {
+    const id = existingRows[0].id;
+    await pool.query(`UPDATE customer_credit_vendor_accounts
+      SET vendor_name = ?, phone = ?, phone_normalized = NULLIF(?, ''), email = ?, email_normalized = NULLIF(?, '')
+      WHERE id = ? AND enterprise_id = ?`,
+    [vendorName, phone || null, phoneNormalized, email || null, email, id, session.enterpriseId]);
+    return { created: false, vendor: (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === id) };
+  }
+
+  const temporaryPassword = createTemporaryVendorPassword();
+  const id = cryptoRandomId();
+  await pool.query(`INSERT INTO customer_credit_vendor_accounts
+    (id, enterprise_id, vendor_name, phone, phone_normalized, email, email_normalized, password_hash)
+    VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?)`,
+  [id, session.enterpriseId, vendorName, phone || null, phoneNormalized, email || null, email,
+    await hashPassword(temporaryPassword)]);
+  await pool.query(`UPDATE customer_credit_vendor_tracking SET vendor_account_id = ?
+    WHERE enterprise_id = ? AND vendor_account_id IS NULL AND LOWER(TRIM(vendor_name)) = LOWER(TRIM(?))`,
+  [id, session.enterpriseId, vendorName]);
+  await recordAudit(pool, session, { action: "vendor.account_created", entityType: "vendor_account",
+    entityId: id, summary: `Created portal login for ${vendorName}` });
+  return { created: true, temporaryPassword,
+    vendor: (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === id) };
+}
+
+async function getVendorPortalData(session) {
+  const [rows] = await pool.query(`
+    SELECT enterprise_id AS enterpriseId, vendor_account_id AS vendorAccountId, id,
+      reference AS product, unit, received_quantity AS receivedQuantity,
+      spoiled_quantity AS spoilageQuantity, accepted_quantity AS acceptedQuantity,
+      amount AS unitPrice, status, note,
+      DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS createdAt,
+      DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s') AS updatedAt
+    FROM customer_credit_vendor_tracking
+    WHERE enterprise_id = ? AND vendor_account_id = ?
+    ORDER BY created_at DESC, id DESC
+  `, [session.enterpriseId, session.vendorAccountId]);
+  const deliveries = rows.map((row) => ({
+    id: row.id, product: row.product || "Unspecified product", unit: row.unit || "piece",
+    receivedQuantity: Number(row.receivedQuantity || 0), spoilageQuantity: Number(row.spoilageQuantity || 0),
+    acceptedQuantity: Number(row.acceptedQuantity || 0), unitPrice: Number(row.unitPrice || 0),
+    amount: Number(row.acceptedQuantity || 0) * Number(row.unitPrice || 0), status: row.status,
+    note: row.note || "", createdAt: toIsoLike(row.createdAt), updatedAt: toIsoLike(row.updatedAt),
+  }));
+  const summary = calculateVendorPortalSummary(deliveries);
+  const paymentHistory = deliveries.filter((row) => row.status === "paid").map((row) => ({
+    receivingId: row.id, product: row.product, amount: row.amount, paidAt: row.updatedAt,
+  }));
+  const monthlyMap = new Map();
+  for (const row of deliveries) {
+    const month = row.createdAt.slice(0, 7);
+    if (!monthlyMap.has(month)) monthlyMap.set(month, { month, received: 0, spoilage: 0, accepted: 0,
+      amountOwed: 0, paidAmount: 0, unpaidBalance: 0 });
+    const item = monthlyMap.get(month);
+    item.received += row.receivedQuantity;
+    item.spoilage += row.spoilageQuantity;
+    item.accepted += row.acceptedQuantity;
+    item.amountOwed += row.amount;
+    if (row.status === "paid") item.paidAmount += row.amount;
+    else item.unpaidBalance += row.amount;
+  }
+  return {
+    store: { code: session.enterpriseCode, name: session.enterpriseName },
+    vendor: { id: session.vendorAccountId, name: session.vendorName },
+    summary,
+    deliveries,
+    paymentHistory,
+    monthlyStatements: [...monthlyMap.values()].sort((a, b) => b.month.localeCompare(a.month)),
+  };
+}
+
+function createTemporaryVendorPassword() {
+  return `V${crypto.randomBytes(8).toString("base64url")}7`;
 }
 
 async function listVendorSpoilageHistory(enterpriseId) {
@@ -3559,14 +3789,22 @@ async function upsertVendor(session, vendor) {
   if (existingRows.length && existingRows[0].enterpriseId !== enterpriseId) {
     throw new Error("Vendor belongs to a different enterprise");
   }
+  if (vendor.vendorAccountId) {
+    const [accounts] = await pool.query(
+      "SELECT id FROM customer_credit_vendor_accounts WHERE id = ? AND enterprise_id = ? AND status = 'active' LIMIT 1",
+      [vendor.vendorAccountId, enterpriseId],
+    );
+    if (!accounts.length) throw httpError(400, "Select a vendor that belongs to this store");
+  }
 
   await pool.query(
     `
       INSERT INTO customer_credit_vendor_tracking
-        (id, enterprise_id, vendor_name, contact_name, quantity, unit, received_quantity, spoiled_quantity, accepted_quantity, returned_quantity, phone, email, reference, amount, due_date, status, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, enterprise_id, vendor_account_id, vendor_name, contact_name, quantity, unit, received_quantity, spoiled_quantity, accepted_quantity, returned_quantity, phone, email, reference, amount, due_date, status, note, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         vendor_name = VALUES(vendor_name),
+        vendor_account_id = VALUES(vendor_account_id),
         contact_name = VALUES(contact_name),
         quantity = VALUES(quantity),
         unit = VALUES(unit),
@@ -3586,6 +3824,7 @@ async function upsertVendor(session, vendor) {
     [
       vendor.id,
       enterpriseId,
+      vendor.vendorAccountId || null,
       vendor.vendorName,
       vendor.contactName || null,
       vendor.quantity,
@@ -3622,6 +3861,7 @@ async function upsertVendor(session, vendor) {
     `
       SELECT
         id,
+        vendor_account_id AS vendorAccountId,
         vendor_name AS vendorName,
         contact_name AS contactName,
         quantity,
@@ -3648,6 +3888,7 @@ async function upsertVendor(session, vendor) {
   const saved = rows[0];
   return {
     id: saved.id,
+    vendorAccountId: saved.vendorAccountId || "",
     vendorName: saved.vendorName,
     contactName: saved.contactName || "",
     quantity: validVendorQuantity(saved.quantity),
@@ -4002,6 +4243,7 @@ function normalizeVendorEntry(vendor) {
   const acceptedQuantity = hasDirectionalQuantity ? quantities.accepted : quantity;
   return {
     id: requiredString(vendor.id || cryptoRandomId(), "Vendor id"),
+    vendorAccountId: String(vendor.vendorAccountId || "").trim().slice(0, 64),
     vendorName: requiredString(vendor.vendorName || vendor.name, "Vendor name").slice(0, 160),
     contactName: String(vendor.contactName || "").trim().slice(0, 160),
     quantity,
@@ -4398,6 +4640,72 @@ function clearSession(response) {
   response.setHeader("Set-Cookie", "store_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 }
 
+function getVendorSession(request) {
+  const cookie = parseCookies(request.headers.cookie || "").vendor_session;
+  if (!cookie) return null;
+  const [payload, signature] = cookie.split(".");
+  if (!payload || !signature || !safeEqual(signature, sign(payload))) return null;
+  try {
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (session.kind !== "vendor" || Date.now() >= session.exp) return null;
+    if (!session.enterpriseId || !session.vendorAccountId) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function setVendorSession(response, account) {
+  const maxAgeSeconds = Math.max(1, config.auth.sessionHours) * 60 * 60;
+  const payload = Buffer.from(JSON.stringify({
+    kind: "vendor",
+    enterpriseId: account.enterpriseId,
+    enterpriseCode: account.enterpriseCode,
+    enterpriseName: account.enterpriseName,
+    vendorAccountId: account.vendorAccountId,
+    vendorName: account.vendorName,
+    sessionVersion: Number(account.sessionVersion || 1),
+    exp: Date.now() + maxAgeSeconds * 1000,
+  })).toString("base64url");
+  const secureFlag = config.auth.secureCookie ? "; Secure" : "";
+  response.setHeader("Set-Cookie",
+    `vendor_session=${payload}.${sign(payload)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}${secureFlag}`);
+}
+
+function clearVendorSession(response) {
+  response.setHeader("Set-Cookie", "vendor_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+}
+
+async function findVendorAccountForLogin(enterpriseCode, login) {
+  const email = normalizeVendorEmail(login);
+  const phone = normalizeVendorPhone(login);
+  const [rows] = await pool.query(`
+    SELECT e.id AS enterpriseId, e.code AS enterpriseCode, e.name AS enterpriseName,
+      e.status AS enterpriseStatus, a.id AS vendorAccountId, a.vendor_name AS vendorName,
+      a.password_hash AS passwordHash, a.session_version AS sessionVersion, a.status
+    FROM customer_credit_enterprises e
+    INNER JOIN customer_credit_vendor_accounts a ON a.enterprise_id = e.id
+    WHERE e.code = ? AND (a.email_normalized = ? OR a.phone_normalized = ?)
+    LIMIT 1
+  `, [enterpriseCode, email || null, phone || null]);
+  return rows[0] || null;
+}
+
+async function refreshVendorSessionAccess(session) {
+  const [rows] = await pool.query(`
+    SELECT e.id AS enterpriseId, e.code AS enterpriseCode, e.name AS enterpriseName,
+      e.status AS enterpriseStatus, a.id AS vendorAccountId, a.vendor_name AS vendorName,
+      a.session_version AS sessionVersion, a.status
+    FROM customer_credit_enterprises e
+    INNER JOIN customer_credit_vendor_accounts a ON a.enterprise_id = e.id
+    WHERE e.id = ? AND a.id = ? LIMIT 1
+  `, [session.enterpriseId, session.vendorAccountId]);
+  const current = rows[0];
+  if (!current || current.enterpriseStatus !== "active" || current.status !== "active") return null;
+  if (Number(session.sessionVersion || 1) !== Number(current.sessionVersion || 1)) return null;
+  return { ...session, ...current };
+}
+
 async function findEnterpriseUser(enterpriseCode, username) {
   const [rows] = await pool.query(
     `
@@ -4645,6 +4953,37 @@ function sendLoginPage(response, error = "", values = {}, success = "") {
       <button type="submit">Log In</button>
       <p class="auth-switch"><a href="${config.email.apiKey ? "/forgot-password" : "/access-help"}">Forgot username or password?</a></p>
       <p class="auth-switch">New business? <a href="/signup">Create an account</a></p>
+    </form>
+  </body>
+</html>`);
+}
+
+function sendVendorLoginPage(response, error = "", values = {}) {
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vendor Portal Login</title>
+    <style>${authPageStyles()}</style>
+  </head>
+  <body>
+    <form method="post" action="/vendor-login">
+      <div><p class="eyebrow">Vendor Portal</p><h1>Vendor Login</h1></div>
+      <p class="helper">Use the store code and the phone number or email registered by the store.</p>
+      <p class="error" style="display:${error ? "block" : "none"}">${escapeHtmlServer(error)}</p>
+      <label>Store code
+        <input name="enterprise" value="${escapeHtmlServer(values.enterpriseCode || "")}" autocomplete="organization" required />
+      </label>
+      <label>Phone or email
+        <input name="login" value="${escapeHtmlServer(values.login || "")}" autocomplete="username" required />
+      </label>
+      <label>Password
+        <input name="password" type="password" autocomplete="current-password" required autofocus />
+      </label>
+      <button type="submit">Log In</button>
+      <p class="auth-switch">Store employee? <a href="/login">Staff login</a></p>
     </form>
   </body>
 </html>`);

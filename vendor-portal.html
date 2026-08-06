@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vendor Portal</title>
+    <link rel="stylesheet" href="vendor-portal.css?v=20260806" />
+  </head>
+  <body>
+    <header>
+      <div><p class="eyebrow">Vendor Portal</p><h1 id="vendorName">Vendor</h1><p id="storeName"></p></div>
+      <a class="logout" href="/vendor-logout">Log out</a>
+    </header>
+    <main>
+      <section class="metrics" aria-label="Vendor totals">
+        <article><span>Received</span><strong id="totalReceived">0</strong></article>
+        <article><span>Spoilage</span><strong id="totalSpoilage">0</strong></article>
+        <article><span>Accepted</span><strong id="totalAccepted">0</strong></article>
+        <article><span>Unpaid balance</span><strong id="unpaidBalance">$0.00</strong></article>
+      </section>
+      <section class="panel">
+        <div class="heading"><div><h2>Monthly statements</h2><p>Amounts are based on accepted quantity.</p></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Month</th><th>Received</th><th>Spoilage</th><th>Accepted</th><th>Amount owed</th><th>Paid</th><th>Unpaid</th></tr></thead><tbody id="statementRows"></tbody></table></div>
+      </section>
+      <section class="panel">
+        <div class="heading"><div><h2>Deliveries</h2><p>Read-only receiving history for this store.</p></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Product</th><th>Received</th><th>Spoilage</th><th>Accepted</th><th>Unit price</th><th>Amount</th><th>Status</th></tr></thead><tbody id="deliveryRows"></tbody></table></div>
+      </section>
+      <section class="panel">
+        <div class="heading"><div><h2>Payment history</h2><p>Deliveries marked paid by the store.</p></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Paid date</th><th>Product</th><th>Amount</th><th>Receiving ID</th></tr></thead><tbody id="paymentRows"></tbody></table></div>
+      </section>
+      <p class="error" id="portalError" hidden></p>
+    </main>
+    <script src="vendor-portal.js?v=20260806"></script>
+  </body>
+</html>

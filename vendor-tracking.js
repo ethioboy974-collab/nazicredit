@@ -116,6 +116,7 @@ async function loadRoleAccess() {
       accessState = {
         role: result.user?.role || "employee",
         ownerPinUnlocked: Boolean(result.permissions?.ownerPinUnlocked),
+        enterpriseCode: result.enterprise?.code || "",
       };
     } catch {
       accessState = { role: "employee", ownerPinUnlocked: false };
@@ -142,17 +143,27 @@ async function databaseRequest(path, options = {}) {
 }
 
 async function loadDatabaseState() {
-  const [result, spoilageResult] = await Promise.all([
+  const [result, spoilageResult, accountResult] = await Promise.all([
     databaseRequest("/vendors"),
     databaseRequest("/vendors/spoilage-history"),
+    databaseRequest("/vendor-accounts"),
   ]);
   const deliveries = Array.isArray(result.vendors) ? result.vendors : [];
   const vendorMap = new Map();
+  const vendorByAccountId = new Map();
+  for (const account of (accountResult.vendors || [])) {
+    const vendor = { id: account.id, accountId: account.id, name: cleanName(account.vendorName),
+      phone: account.phone || "", email: account.email || "", paymentMethod: "Cash" };
+    vendorMap.set(vendor.name.toLowerCase(), vendor);
+    vendorByAccountId.set(account.id, vendor);
+  }
   const entries = [];
   for (const delivery of deliveries) {
     const name = cleanName(delivery.vendorName || "Unknown vendor");
     const key = name.toLowerCase();
-    if (!vendorMap.has(key)) {
+    if (delivery.vendorAccountId && vendorByAccountId.has(delivery.vendorAccountId)) {
+      vendorMap.set(key, vendorByAccountId.get(delivery.vendorAccountId));
+    } else if (!vendorMap.has(key)) {
       vendorMap.set(key, { id: `vendor-${key}`, name, phone: delivery.phone || "", email: delivery.email || "", paymentMethod: "Cash" });
     } else if (!vendorMap.get(key).email && delivery.email) {
       vendorMap.get(key).email = delivery.email;
@@ -195,6 +206,7 @@ async function syncEntryToDatabase(entry) {
     method: "POST",
     body: JSON.stringify({
       id: entry.databaseId || undefined,
+      vendorAccountId: vendor.accountId || "",
       vendorName: vendor.name,
       phone: vendor.phone || "",
       email: vendor.email || "",
@@ -374,7 +386,7 @@ function bindNavigation() {
 }
 
 function bindForms() {
-  elements.vendorForm.addEventListener("submit", (event) => {
+  elements.vendorForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!isAdmin()) {
       showToast("Only an admin can add vendors.");
@@ -382,18 +394,28 @@ function bindForms() {
     }
 
     const form = event.currentTarget;
-    const vendor = {
-      id: makeId(),
-      name: form.elements.name.value.trim(),
-      phone: form.elements.phone.value.trim(),
-      email: cleanEmail(form.elements.email.value),
-      paymentMethod: form.elements.paymentMethod.value
-    };
-    state.vendors.push(vendor);
-    form.reset();
-    saveState();
-    render();
-    showToast("Vendor added.");
+    if (!form.elements.phone.value.trim() && !form.elements.email.value.trim()) {
+      showToast("Enter a phone number or email for vendor login.");
+      return;
+    }
+    try {
+      const result = await databaseRequest("/vendor-accounts", { method: "POST", body: JSON.stringify({
+        vendorName: form.elements.name.value.trim(), phone: form.elements.phone.value.trim(),
+        email: cleanEmail(form.elements.email.value),
+      }) });
+      const saved = result.vendor;
+      const vendor = { id: saved.id, accountId: saved.id, name: saved.vendorName, phone: saved.phone || "",
+        email: saved.email || "", paymentMethod: form.elements.paymentMethod.value };
+      const existingIndex = state.vendors.findIndex((item) => item.id === vendor.id);
+      if (existingIndex >= 0) state.vendors[existingIndex] = vendor;
+      else state.vendors.push(vendor);
+      const notice = document.querySelector("#vendorCredentialNotice");
+      notice.hidden = false;
+      notice.innerHTML = result.created
+        ? `Vendor portal login created. Store code: <strong>${escapeHtml(accessState.enterpriseCode || "your store code")}</strong>. Login: <strong>${escapeHtml(vendor.phone || vendor.email)}</strong>. Temporary password: <strong>${escapeHtml(result.temporaryPassword)}</strong>. Portal: <strong>/vendor-login</strong>`
+        : `Existing vendor portal login updated for <strong>${escapeHtml(vendor.name)}</strong>.`;
+      form.reset(); saveState(); render(); showToast("Vendor added with portal access.");
+    } catch (error) { showToast(error.message); }
   });
 
   elements.deliveryForm.addEventListener("submit", (event) => {
