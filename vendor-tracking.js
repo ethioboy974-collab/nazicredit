@@ -686,13 +686,10 @@ function saveEditedEntry() {
   }
   form.elements.spoilageQuantity.setCustomValidity("");
   entry.date = form.elements.date.value;
-  entry.product = cleanName(form.elements.product.value);
   entry.receivedQuantity = quantities.received;
   entry.spoilageQuantity = quantities.spoilage;
   entry.acceptedQuantity = quantities.accepted;
   entry.quantity = quantities.accepted;
-  entry.unit = form.elements.unit.value;
-  entry.unitPrice = Number(form.elements.unitPrice.value);
   entry.note = form.elements.note.value.trim();
   state.activeMonth = entry.date.slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
