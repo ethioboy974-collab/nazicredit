@@ -48,8 +48,6 @@ const elements = {
   statementRows: document.querySelector("#statementRows"),
   statementHeadingVendor: document.querySelector("#statementHeadingVendor"),
   statementHeadingProduct: document.querySelector("#statementHeadingProduct"),
-  quantitySummary: document.querySelector("#quantitySummary"),
-  quantitySummaryPanel: document.querySelector("#quantitySummaryPanel"),
   selectAllStatementRows: document.querySelector("#selectAllStatementRows"),
   paySelectedRows: document.querySelector("#paySelectedRows"),
   printPaidReport: document.querySelector("#printPaidReport"),
@@ -844,8 +842,6 @@ function renderStatement() {
   elements.statementEmpty.hidden = hasResults;
   elements.statementOverview.hidden = !hasResults;
   elements.statementTableWrap.hidden = !hasResults;
-  elements.quantitySummaryPanel.hidden = !hasResults;
-  elements.quantitySummary.hidden = !hasResults;
   elements.statementTotalBar.hidden = !hasResults;
   elements.paymentBar.hidden = !hasResults;
   elements.paySelectedRows.hidden = showingPaid;
@@ -856,7 +852,6 @@ function renderStatement() {
     ? `${showingPaid ? "Paid records" : "Unpaid statement"} for "${elements.statementSearch.value.trim()}"`
     : "Type a vendor name to display their statement.";
 
-  elements.quantitySummary.innerHTML = buildQuantitySummary(statementEntries);
 
   elements.statementRows.innerHTML = [...statementEntries]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -1155,7 +1150,6 @@ function printSelectedPaidReport() {
       <span><strong>Paid date:</strong> ${escapeHtml(formatDate(payment.date))}</span>
       <span class="paid">STATUS: PAID</span>
     </div>
-    ${buildPrintQuantitySummary(reportEntries)}
     <table><thead><tr><th>#</th><th>Date & time</th><th>Product</th><th>Type</th><th>Quantity</th><th>Unit price</th><th>Amount</th></tr></thead>
     <tbody>${reportRows}</tbody></table>
     <div class="total">Total paid: ${escapeHtml(money.format(calculateTotals(reportEntries).payableValue))}</div>
@@ -1367,57 +1361,6 @@ function printVendorReport(vendorId) {
   elements.statementSearch.value = vendor.name;
   renderStatement();
   window.setTimeout(() => window.print(), 50);
-}
-
-function buildQuantitySummary(entries) {
-  const summary = summarizeQuantitiesByUnit(entries);
-  if (!summary.length) return "";
-  return summary.map((row) => `
-    <article class="quantity-summary-card">
-      <span>${escapeHtml(row.unit)}</span>
-      <strong>${escapeHtml(formatQty(row.payable))}</strong>
-      <small>Payable quantity</small>
-      <dl>
-        <div><dt>Received</dt><dd>${escapeHtml(formatQty(row.received))}</dd></div>
-        <div><dt>Spoiled</dt><dd>${escapeHtml(formatQty(row.spoiled))}</dd></div>
-        <div><dt>Returned</dt><dd>${escapeHtml(formatQty(row.returned))}</dd></div>
-      </dl>
-    </article>
-  `).join("");
-}
-
-function buildPrintQuantitySummary(entries) {
-  const summary = summarizeQuantitiesByUnit(entries);
-  if (!summary.length) return "";
-  const rows = summary.map((row) => `
-    <tr>
-      <td>${escapeHtml(row.unit)}</td>
-      <td>${escapeHtml(formatQty(row.received))}</td>
-      <td>${escapeHtml(formatQty(row.spoiled))}</td>
-      <td>${escapeHtml(formatQty(row.returned))}</td>
-      <td>${escapeHtml(formatQty(row.payable))}</td>
-    </tr>
-  `).join("");
-  return `<section class="quantity-report"><h2>Recorded quantity summary</h2><table><thead><tr><th>Unit</th><th>Received</th><th>Spoiled</th><th>Returned</th><th>Payable quantity</th></tr></thead><tbody>${rows}</tbody></table></section>`;
-}
-
-function summarizeQuantitiesByUnit(entries) {
-  const totals = new Map();
-  entries.forEach((entry) => {
-    const unit = String(entry.unit || "unit").trim() || "unit";
-    if (!totals.has(unit)) totals.set(unit, { unit, received: 0, spoiled: 0, returned: 0, payable: 0 });
-    const row = totals.get(unit);
-    const quantity = Number(entry.quantity) || 0;
-    if (entry.type === "DELIVERED") {
-      row.received += Number(entry.receivedQuantity ?? quantity);
-      row.spoiled += Number(entry.spoilageQuantity || 0);
-      row.payable += Number(entry.acceptedQuantity ?? quantity);
-    }
-    else if (entry.type === "SPOILED") row.spoiled += quantity;
-    else if (entry.type === "RETURNED") row.returned += quantity;
-    if (entry.type !== "DELIVERED") row.payable = row.received - row.spoiled - row.returned;
-  });
-  return [...totals.values()].sort((a, b) => a.unit.localeCompare(b.unit));
 }
 
 function entriesForActiveMonth() {
