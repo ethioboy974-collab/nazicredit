@@ -140,6 +140,19 @@ h2 {
   background: #e7edf4;
 }
 
+.employee-credit-result {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.employee-credit-result span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .summary-grid {
   display: grid;
   gap: 12px;

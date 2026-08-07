@@ -92,6 +92,23 @@
           <button class="primary-button" type="submit">Save Record</button>
         </form>
 
+        <section class="panel record-form" id="employeePaymentPanel" hidden>
+          <div class="panel-heading"><h2>Collect Payment</h2></div>
+          <form id="employeeCreditSearchForm">
+            <label>Customer name or phone<input id="employeeCreditSearch" type="search" minlength="2" required /></label>
+            <button class="primary-button" type="submit">Find Customer</button>
+          </form>
+          <div id="employeeCreditResults"></div>
+          <form id="employeePaymentForm" hidden>
+            <input id="employeePaymentRecordId" type="hidden" />
+            <p id="employeePaymentCustomer"></p>
+            <label>Payment amount<input id="employeePaymentAmount" type="number" min="0.01" step="0.01" required /></label>
+            <label>Payment method<select id="employeePaymentMethod"><option>Cash</option><option>Card</option><option>Transfer</option><option>Other</option></select></label>
+            <label>Note<input id="employeePaymentNote" maxlength="160" /></label>
+            <button class="primary-button" type="submit">Save Payment</button>
+          </form>
+        </section>
+
         <section class="panel records-panel" id="creditRecordsPanel" aria-labelledby="recordsHeading">
           <div class="panel-heading records-heading">
             <div>
@@ -462,7 +479,7 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=20260807-entry-form-fix"></script>
+    <script src="app.js?v=20260807-employee-payment"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

@@ -1428,7 +1428,8 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
-  const temporaryPasswordCreditEntry = request.method === "POST" && requestUrl.pathname === "/api/records";
+  const temporaryPasswordCreditEntry = request.method === "POST"
+    && ["/api/records", "/api/employee/credit-payment"].includes(requestUrl.pathname);
   if (session.mustChangePassword && request.method !== "GET"
       && requestUrl.pathname !== "/api/account/password" && !temporaryPasswordCreditEntry) {
     throw httpError(403, "Change your temporary password before making updates");
@@ -1892,6 +1893,21 @@ async function handleApiRequest(request, response, requestUrl, session) {
     requireRecordManager(session);
     await deleteVendor(session, vendorMatch[1]);
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/employee/credit-search") {
+    requireRecordManager(session);
+    const query = String(requestUrl.searchParams.get("q") || "").trim();
+    sendJson(response, 200, { ok: true, records: await searchOpenCustomerCredits(session.enterpriseId, query) });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/employee/credit-payment") {
+    requireRecordManager(session);
+    const body = await readJsonBody(request);
+    const result = await collectEmployeeCreditPayment(session, body);
+    sendJson(response, 201, { ok: true, ...result });
     return;
   }
 
@@ -4339,6 +4355,41 @@ async function listRecords(enterpriseId) {
     createdAt: toIsoLike(record.createdAt),
     updatedAt: toIsoLike(record.updatedAt),
   }));
+}
+
+async function searchOpenCustomerCredits(enterpriseId, queryValue) {
+  const query = String(queryValue || "").trim().toLowerCase();
+  if (query.length < 2) throw httpError(400, "Enter at least two letters or phone digits");
+  const records = await listRecords(enterpriseId);
+  return records.filter((record) => {
+    const balance = record.creditAmount - record.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    return balance > 0.009
+      && `${record.customerName} ${record.customerPhone}`.toLowerCase().includes(query);
+  }).slice(0, 10).map((record) => ({
+    id: record.id,
+    customerName: record.customerName,
+    customerPhone: record.customerPhone,
+    itemNote: record.itemNote,
+    creditDate: record.creditDate,
+    balance: Number((record.creditAmount - record.payments.reduce((sum, payment) => sum + payment.amount, 0)).toFixed(2)),
+  }));
+}
+
+async function collectEmployeeCreditPayment(session, body) {
+  const recordId = requiredString(body.recordId, "Credit record");
+  const records = await listRecords(session.enterpriseId);
+  const record = records.find((item) => item.id === recordId);
+  if (!record) throw httpError(404, "Credit record not found");
+  const balance = record.creditAmount - record.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const amount = validAmount(body.amount);
+  if (amount > balance + 0.009) throw httpError(400, "Payment cannot exceed the customer balance");
+  const method = ["Cash", "Card", "Transfer", "Other"].includes(body.method) ? body.method : "Other";
+  const note = `${method}${String(body.note || "").trim() ? ` - ${String(body.note).trim().slice(0, 120)}` : ""}`;
+  const payment = normalizePayment({ id: cryptoRandomId(), date: body.date, time: body.time, amount, note });
+  await insertPayment(session.enterpriseId, recordId, payment);
+  await recordAudit(pool, session, { action:"payment.collected", entityType:"payment", entityId:payment.id,
+    summary:`Collected ${amount.toFixed(2)} from ${record.customerName} by ${method}` });
+  return { payment: { id: payment.id, amount: payment.amount, method }, remainingBalance: Number((balance - amount).toFixed(2)) };
 }
 
 async function getTimeClockData(session, request) {

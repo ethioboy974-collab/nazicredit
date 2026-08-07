@@ -51,6 +51,16 @@ const elements = {
   creditSummary: document.querySelector("#creditSummary"),
   creditRecordsPanel: document.querySelector("#creditRecordsPanel"),
   employeePasswordNotice: document.querySelector("#employeePasswordNotice"),
+  employeePaymentPanel: document.querySelector("#employeePaymentPanel"),
+  employeeCreditSearchForm: document.querySelector("#employeeCreditSearchForm"),
+  employeeCreditSearch: document.querySelector("#employeeCreditSearch"),
+  employeeCreditResults: document.querySelector("#employeeCreditResults"),
+  employeePaymentForm: document.querySelector("#employeePaymentForm"),
+  employeePaymentRecordId: document.querySelector("#employeePaymentRecordId"),
+  employeePaymentCustomer: document.querySelector("#employeePaymentCustomer"),
+  employeePaymentAmount: document.querySelector("#employeePaymentAmount"),
+  employeePaymentMethod: document.querySelector("#employeePaymentMethod"),
+  employeePaymentNote: document.querySelector("#employeePaymentNote"),
   storageStatus: document.querySelector("#storageStatus"),
   syncButton: document.querySelector("#syncButton"),
   printLedgerButton: document.querySelector("#printLedgerButton"),
@@ -381,6 +391,7 @@ async function loadSessionInfo() {
     elements.printLedgerButton.hidden = state.user.role !== "owner";
     elements.syncButton.hidden = state.user.role !== "owner";
     elements.creditRecordsPanel.hidden = state.user.role !== "owner";
+    elements.employeePaymentPanel.hidden = state.user.role !== "employee";
     elements.teamSection.hidden = !state.permissions.manageUsers;
     elements.platformSection.hidden =
       !state.permissions.manageSignupInvites && !state.permissions.manageEnterprises;
@@ -669,6 +680,63 @@ async function addRecord(event) {
     entityId: record.id,
     summary: `Created credit for ${record.customerName}`,
   });
+}
+
+async function searchEmployeeCredits(event) {
+  event.preventDefault();
+  try {
+    const query = elements.employeeCreditSearch.value.trim();
+    const result = await mysqlRequest(`/employee/credit-search?q=${encodeURIComponent(query)}`);
+    elements.employeePaymentForm.hidden = true;
+    elements.employeeCreditResults.innerHTML = result.records.length
+      ? result.records.map((record) => `
+        <button class="ghost-button employee-credit-result" type="button" data-credit-record="${escapeHtml(record.id)}"
+          data-customer="${escapeHtml(record.customerName)}" data-balance="${record.balance}">
+          <strong>${escapeHtml(record.customerName)}</strong>
+          <span>${escapeHtml(record.customerPhone || "No phone")} · Balance ${formatMoney(record.balance)}</span>
+        </button>`).join("")
+      : '<p class="helper-text">No open credit found for that customer.</p>';
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function selectEmployeeCredit(event) {
+  const button = event.target.closest("[data-credit-record]");
+  if (!button) return;
+  const balance = Number(button.dataset.balance || 0);
+  elements.employeePaymentRecordId.value = button.dataset.creditRecord;
+  elements.employeePaymentCustomer.textContent = `${button.dataset.customer} · Balance ${formatMoney(balance)}`;
+  elements.employeePaymentAmount.value = balance.toFixed(2);
+  elements.employeePaymentAmount.max = balance.toFixed(2);
+  elements.employeePaymentMethod.value = "Cash";
+  elements.employeePaymentNote.value = "";
+  elements.employeePaymentForm.hidden = false;
+  elements.employeePaymentAmount.focus();
+}
+
+async function saveEmployeePayment(event) {
+  event.preventDefault();
+  try {
+    await mysqlRequest("/employee/credit-payment", {
+      method: "POST",
+      body: JSON.stringify({
+        recordId: elements.employeePaymentRecordId.value,
+        amount: elements.employeePaymentAmount.value,
+        method: elements.employeePaymentMethod.value,
+        note: elements.employeePaymentNote.value.trim(),
+        date: today(),
+        time: currentTime(),
+      }),
+    });
+    elements.employeePaymentForm.reset();
+    elements.employeePaymentForm.hidden = true;
+    elements.employeeCreditResults.innerHTML = "";
+    elements.employeeCreditSearchForm.reset();
+    toast("Customer payment saved");
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function saveEditedRecord(event) {
@@ -1297,6 +1365,9 @@ async function removeManagedEnterprise(enterpriseId) {
 
 function bindEvents() {
   elements.recordForm.addEventListener("submit", addRecord);
+  elements.employeeCreditSearchForm.addEventListener("submit", searchEmployeeCredits);
+  elements.employeeCreditResults.addEventListener("click", selectEmployeeCredit);
+  elements.employeePaymentForm.addEventListener("submit", saveEmployeePayment);
   elements.paymentForm.addEventListener("submit", addPayment);
   elements.editForm.addEventListener("submit", saveEditedRecord);
 
