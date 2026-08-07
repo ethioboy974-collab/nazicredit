@@ -15,9 +15,15 @@ test("vendor statement uses the simplified amount-due layout", () => {
   assert.match(html, /id="statementFooterTotal"/);
 });
 
-test("statements are monthly and printed with store, vendor, period, and date", () => {
+test("statements support inclusive date ranges and print store, vendor, period, and date", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.js"), "utf8");
-  assert.match(source, /entry\.date\.startsWith\(state\.activeMonth\)/);
+  const html = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.html"), "utf8");
+  assert.match(html, /id="statementDateFrom"/);
+  assert.match(html, /id="statementDateTo"/);
+  assert.match(html, /id="selectStatementRange"/);
+  assert.match(source, /entry\.date >= dateFrom/);
+  assert.match(source, /entry\.date <= dateTo/);
+  assert.match(source, /function selectAllStatementRange\(\)/);
   assert.match(source, /printStoreName\.textContent/);
   assert.match(source, /printVendorName\.textContent/);
   assert.match(source, /printReportPeriod\.textContent/);

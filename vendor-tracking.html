@@ -297,6 +297,14 @@
                   <option value="paid">Paid records</option>
                 </select>
               </label>
+              <label class="compact-select">
+                From date
+                <input id="statementDateFrom" type="date" />
+              </label>
+              <label class="compact-select">
+                To date
+                <input id="statementDateTo" type="date" />
+              </label>
             </div>
             <div class="print-report-header" id="printReportHeader">
               <h2>Vendor Statement</h2>
@@ -317,6 +325,7 @@
                   <small id="paymentStatus">No payment recorded</small>
                 </div>
                 <div class="payment-actions">
+                  <button class="secondary-action" id="selectStatementRange" type="button">Select all in range</button>
                   <button class="primary-action" id="paySelectedRows" type="button">Mark selected as paid</button>
                   <button class="secondary-action" id="printPaidReport" type="button">Print paid report</button>
                   <button class="secondary-action danger-outline" id="markUnpaid" type="button">Mark unpaid</button>

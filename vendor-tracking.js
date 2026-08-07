@@ -41,6 +41,8 @@ const elements = {
   akrabiOptions: document.querySelector("#akrabiOptions"),
   statementSearch: document.querySelector("#statementSearch"),
   statementStatus: document.querySelector("#statementStatus"),
+  statementDateFrom: document.querySelector("#statementDateFrom"),
+  statementDateTo: document.querySelector("#statementDateTo"),
   printVendorName: document.querySelector("#printVendorName"),
   printStoreName: document.querySelector("#printStoreName"),
   printReportPeriod: document.querySelector("#printReportPeriod"),
@@ -56,6 +58,7 @@ const elements = {
   statementFooterLabel: document.querySelector("#statementFooterLabel"),
   statementTotalLabel: document.querySelector("#statementTotalLabel"),
   selectAllStatementRows: document.querySelector("#selectAllStatementRows"),
+  selectStatementRange: document.querySelector("#selectStatementRange"),
   paySelectedRows: document.querySelector("#paySelectedRows"),
   printPaidReport: document.querySelector("#printPaidReport"),
   statementTotalBar: document.querySelector("#statementTotalBar"),
@@ -73,6 +76,7 @@ init();
 
 function init() {
   elements.activeMonth.value = state.activeMonth;
+  setStatementDateRangeForMonth();
   elements.statementSearch.value = "";
   setDefaultDates();
   bindAuth();
@@ -214,6 +218,7 @@ async function loadDatabaseState() {
   state.spoilageHistory = Array.isArray(spoilageResult.history) ? spoilageResult.history : [];
   state.activeMonth = localDateString().slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
+  setStatementDateRangeForMonth();
   saveState();
   render();
   updateReceivingItemForSelectedVendor();
@@ -337,6 +342,13 @@ function setDefaultDates() {
   elements.deliveryForm.elements.date.value = today;
 }
 
+function setStatementDateRangeForMonth() {
+  const [year, month] = String(state.activeMonth || localDateString().slice(0, 7)).split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  elements.statementDateFrom.value = `${year}-${String(month).padStart(2, "0")}-01`;
+  elements.statementDateTo.value = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
 function bindNavigation() {
   document.querySelectorAll(".nav-tab").forEach((button) => {
     button.addEventListener("click", () => {
@@ -359,11 +371,14 @@ function bindNavigation() {
 
   elements.activeMonth.addEventListener("change", () => {
     state.activeMonth = elements.activeMonth.value;
+    setStatementDateRangeForMonth();
     saveState();
     render();
   });
 
   elements.statementSearch.addEventListener("input", renderStatement);
+  elements.statementDateFrom.addEventListener("change", renderStatement);
+  elements.statementDateTo.addEventListener("change", renderStatement);
   elements.statementStatus.addEventListener("change", () => {
     selectedStatementEntries.clear();
     renderStatement();
@@ -375,6 +390,7 @@ function bindNavigation() {
   elements.statementRows.addEventListener("click", handleStatementAction);
   elements.statementRows.addEventListener("change", handleStatementSelection);
   elements.selectAllStatementRows.addEventListener("change", toggleAllStatementRows);
+  elements.selectStatementRange.addEventListener("click", selectAllStatementRange);
   elements.paySelectedRows.addEventListener("click", paySelectedStatementRows);
   elements.printPaidReport.addEventListener("click", printSelectedPaidReport);
   elements.markUnpaid.addEventListener("click", markSelectedVendorUnpaid);
@@ -525,6 +541,7 @@ function addEntryFromForm(form, type) {
   };
   state.activeMonth = entry.date.slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
+  setStatementDateRangeForMonth();
   saveState();
   render();
   syncEntryToDatabase(entry)
@@ -760,6 +777,7 @@ function saveEditedEntry() {
   entry.note = form.elements.note.value.trim();
   state.activeMonth = entry.date.slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
+  setStatementDateRangeForMonth();
   saveState();
   elements.editDialog.close();
   render();
@@ -900,7 +918,11 @@ function renderStatement() {
   const showingPaid = elements.statementStatus.value === "paid";
   const hasSearch = Boolean(searchText);
   const hasResults = statementEntries.length > 0;
-  elements.statementEmpty.textContent = hasSearch
+  const invalidRange = elements.statementDateFrom.value && elements.statementDateTo.value
+    && elements.statementDateFrom.value > elements.statementDateTo.value;
+  elements.statementEmpty.textContent = invalidRange
+    ? "From date cannot be after To date."
+    : hasSearch
     ? (showingPaid ? "No paid records found for that vendor." : "No unpaid statement found for that vendor.")
     : "Type a vendor name to display their statement.";
   elements.statementEmpty.hidden = hasResults;
@@ -912,6 +934,7 @@ function renderStatement() {
   elements.markUnpaid.hidden = !showingPaid;
   elements.printPaidReport.hidden = !showingPaid;
   elements.clearPaidRecords.hidden = !showingPaid;
+  elements.selectStatementRange.textContent = showingPaid ? "Select all paid records" : "Select all in range";
   document.querySelector("#statementSubtext").textContent = searchText
     ? `${showingPaid ? "Paid records" : "Unpaid statement"} for "${elements.statementSearch.value.trim()}"`
     : "Type a vendor name to display their statement.";
@@ -960,7 +983,7 @@ function renderStatement() {
   elements.statementHeadingVendor.textContent = statementVendorNames.length === 1
     ? statementVendorNames[0]
     : statementVendorNames.length > 1 ? `${statementVendorNames.length} vendors` : "All vendors";
-  elements.statementHeadingPeriod.textContent = formatMonth(state.activeMonth);
+  elements.statementHeadingPeriod.textContent = formatStatementDateRange();
   const visibleIds = new Set(statementEntries.map((entry) => String(entry.id)));
   for (const id of selectedStatementEntries) {
     if (!visibleIds.has(id)) selectedStatementEntries.delete(id);
@@ -1009,6 +1032,21 @@ function toggleAllStatementRows() {
   renderPaymentStatus();
 }
 
+function selectAllStatementRange() {
+  const checkboxes = elements.statementRows.querySelectorAll("[data-select-entry]");
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = true;
+    selectedStatementEntries.add(String(checkbox.dataset.selectEntry));
+  });
+  elements.selectAllStatementRows.checked = checkboxes.length > 0;
+  elements.selectAllStatementRows.indeterminate = false;
+  elements.paySelectedRows.textContent = selectedStatementEntries.size
+    ? `Mark selected as paid (${selectedStatementEntries.size})`
+    : "Mark selected as paid";
+  resetClearPaidButton();
+  renderPaymentStatus();
+}
+
 async function paySelectedStatementRows() {
   if (!isAdmin()) {
     showToast("Only an admin can mark payments paid.");
@@ -1035,31 +1073,34 @@ async function paySelectedStatementRows() {
   }
 
   vendorIds.forEach((vendorId) => {
-    const selectedIds = selectedEntries
-      .filter((entry) => entry.vendorId === vendorId)
-      .map((entry) => String(entry.id));
-    const existing = state.payments.find(
-      (item) => item.vendorId === vendorId && item.month === state.activeMonth,
-    );
-    if (existing) {
-      const currentIds = Array.isArray(existing.entryIds) ? existing.entryIds : [];
-      existing.entryIds = [...new Set([...currentIds, ...selectedIds])];
-      const paidEntries = entriesForActiveMonth().filter(
-        (entry) => entry.vendorId === vendorId && existing.entryIds.includes(String(entry.id)),
+    const vendorEntries = selectedEntries.filter((entry) => entry.vendorId === vendorId);
+    const months = [...new Set(vendorEntries.map((entry) => entry.date.slice(0, 7)))];
+    months.forEach((month) => {
+      const monthEntries = vendorEntries.filter((entry) => entry.date.startsWith(month));
+      const selectedIds = monthEntries.map((entry) => String(entry.id));
+      const existing = state.payments.find(
+        (item) => item.vendorId === vendorId && item.month === month,
       );
-      existing.amount = calculateTotals(paidEntries).payableValue;
-      existing.date = localDateString();
-    } else {
-      const paidEntries = selectedEntries.filter((entry) => entry.vendorId === vendorId);
-      state.payments.push({
-        id: makeId(),
-        vendorId,
-        month: state.activeMonth,
-        amount: calculateTotals(paidEntries).payableValue,
-        date: localDateString(),
-        entryIds: selectedIds,
-      });
-    }
+      if (existing) {
+        const currentIds = Array.isArray(existing.entryIds) ? existing.entryIds : [];
+        existing.entryIds = [...new Set([...currentIds, ...selectedIds])];
+        const paidEntries = state.entries.filter((entry) =>
+          entry.vendorId === vendorId
+          && entry.date.startsWith(month)
+          && existing.entryIds.includes(String(entry.id)));
+        existing.amount = calculateTotals(paidEntries).payableValue;
+        existing.date = localDateString();
+      } else {
+        state.payments.push({
+          id: makeId(),
+          vendorId,
+          month,
+          amount: calculateTotals(monthEntries).payableValue,
+          date: localDateString(),
+          entryIds: selectedIds,
+        });
+      }
+    });
   });
   selectedEntries.forEach((entry) => { entry.status = "paid"; });
   selectedStatementEntries.clear();
@@ -1104,10 +1145,23 @@ function matchesStatementSearch(entry, searchText) {
 
 function getStatementEntries(searchText) {
   if (!searchText) return [];
+  const dateFrom = elements.statementDateFrom.value;
+  const dateTo = elements.statementDateTo.value;
+  if (dateFrom && dateTo && dateFrom > dateTo) return [];
   const showingPaid = elements.statementStatus.value === "paid";
   return state.entries.filter((entry) =>
-    entry.date.startsWith(state.activeMonth)
+    (!dateFrom || entry.date >= dateFrom)
+    && (!dateTo || entry.date <= dateTo)
     && matchesStatementSearch(entry, searchText) && isEntryPaid(entry) === showingPaid);
+}
+
+function formatStatementDateRange() {
+  const dateFrom = elements.statementDateFrom.value;
+  const dateTo = elements.statementDateTo.value;
+  if (dateFrom && dateTo) return `${formatDate(dateFrom)} to ${formatDate(dateTo)}`;
+  if (dateFrom) return `From ${formatDate(dateFrom)}`;
+  if (dateTo) return `Through ${formatDate(dateTo)}`;
+  return "All dates";
 }
 
 function findSingleStatementAkrabiId() {
