@@ -1,5 +1,5 @@
 const state = { users: [], me: null };
-const el = Object.fromEntries(["employeeForm", "employeeId", "displayName", "username", "role", "status", "password", "cancelEdit", "refresh", "employeeList", "activityList", "loginList", "toast", "formTitle"].map((id) => [id, document.querySelector(`#${id}`)]));
+const el = Object.fromEntries(["employeeForm", "employeeId", "displayName", "username", "role", "status", "password", "cancelEdit", "refresh", "employeeList", "activityList", "loginList", "toast", "formTitle", "currentUser"].map((id) => [id, document.querySelector(`#${id}`)]));
 const escapeHtml = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 const formatDate = (value) => value ? new Date(value).toLocaleString() : "";
 
@@ -21,6 +21,7 @@ function toast(message) {
 async function load() {
   const [me, users, activity, logins] = await Promise.all([api("/me"), api("/users"), api("/activity"), api("/login-history")]);
   state.me = me.user;
+  el.currentUser.textContent = `Signed in as ${state.me.username} (${state.me.role})`;
   state.users = users.users;
   renderUsers();
   renderAudit(el.activityList, activity.activity.map((item) => ({ title: item.summary, detail: `${item.username} · ${item.action}`, date: item.createdAt })));

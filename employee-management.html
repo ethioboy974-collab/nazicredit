@@ -8,8 +8,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div><p class="eyebrow">Owner only</p><h1>Employee Management</h1><p>Create accounts and control employee access.</p></div>
-    <a class="button secondary" href="/index.html">Back to Customer Credit</a>
+    <div><p class="eyebrow">Owner only</p><h1>Employee Management</h1><p>Create accounts and control employee access.</p><p id="currentUser">Checking signed-in account…</p></div>
+    <div class="header-actions"><a class="button secondary" href="/index.html">Back to Customer Credit</a><a class="button danger" href="/logout">Log Out</a></div>
   </header>
   <main>
     <section class="panel">
@@ -34,6 +34,6 @@
     </section>
   </main>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="employee-management.js?v=20260807-1"></script>
+  <script src="employee-management.js?v=20260807-2"></script>
 </body>
 </html>
