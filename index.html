@@ -345,8 +345,18 @@
                 Role
                 <select id="staffRole">
                   <option value="employee">Employee</option>
+                  <option value="owner">Owner</option>
                 </select>
               </label>
+              <label>
+                Status
+                <select id="staffStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+            </div>
+            <div class="two-column">
               <label>
                 Temporary password
                 <input id="staffPassword" type="password" autocomplete="new-password" minlength="8" />
@@ -409,6 +419,10 @@
             <button class="ghost-button compact-button" id="refreshActivityButton" type="button">Refresh</button>
           </div>
           <div class="activity-list" id="activityList"></div>
+          <div class="section-heading compact-heading">
+            <h4>Login History</h4>
+          </div>
+          <div class="activity-list" id="loginHistoryList"></div>
         </section>
       </div>
     </dialog>
@@ -446,7 +460,7 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=20260729-roles"></script>
+    <script src="app.js?v=20260807-rbac"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>

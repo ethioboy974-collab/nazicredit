@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS customer_credit_users (
   enterprise_id VARCHAR(64) NOT NULL,
   username VARCHAR(80) NOT NULL,
   display_name VARCHAR(160) NOT NULL,
-  role ENUM('owner', 'staff', 'viewer') NOT NULL DEFAULT 'owner',
+  role ENUM('owner', 'employee') NOT NULL DEFAULT 'employee',
   password_hash VARCHAR(255) NOT NULL,
   must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   session_version INT NOT NULL DEFAULT 1,
@@ -231,6 +231,20 @@ CREATE TABLE IF NOT EXISTS customer_credit_audit_log (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_customer_credit_audit_enterprise_created (enterprise_id, created_at),
   INDEX idx_customer_credit_audit_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS customer_credit_login_history (
+  id VARCHAR(64) PRIMARY KEY,
+  enterprise_id VARCHAR(64) NULL,
+  enterprise_code VARCHAR(80) NOT NULL,
+  user_id VARCHAR(64) NULL,
+  username VARCHAR(80) NOT NULL,
+  outcome ENUM('success', 'failed') NOT NULL,
+  ip_address VARCHAR(80) NULL,
+  user_agent VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_login_history_enterprise_created (enterprise_id, created_at),
+  INDEX idx_login_history_username_created (enterprise_code, username, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS customer_credit_password_reset_tokens (

@@ -1,0 +1,46 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.join(__dirname, "..");
+const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
+const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const client = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const migration = fs.readFileSync(
+  path.join(root, "database", "migrations", "20260807_role_based_access.sql"),
+  "utf8",
+);
+
+test("only owner and employee roles remain after a non-destructive migration", () => {
+  assert.match(migration, /UPDATE customer_credit_users SET role = 'employee'/);
+  assert.match(migration, /ENUM\('owner','employee'\)/);
+  assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM/i);
+});
+
+test("restricted pages and APIs enforce owner access on the server", () => {
+  assert.match(server, /isOwnerOnlyPage\(requestUrl\.pathname\).*session\.role !== "owner"/s);
+  assert.match(server, /response\.writeHead\(403/);
+  assert.match(server, /response\.end\("Access Denied"\)/);
+  assert.match(server, /\/api\/finance\/summary[\s\S]*?requireOwnerPin\(session\)/);
+  assert.match(server, /\/api\/vendors\/mark-paid[\s\S]*?requireEnterpriseOwner\(session\)/);
+  assert.match(server, /\/api\/users[\s\S]*?requireEnterpriseOwner\(session\)/);
+});
+
+test("owner employee management supports roles, passwords, and activation status", () => {
+  assert.match(html, /<option value="owner">Owner<\/option>/);
+  assert.match(html, /id="staffStatus"/);
+  assert.match(client, /Reset Password/);
+  assert.match(client, /changeStaffStatus/);
+  assert.match(server, /employment_status = \?/);
+  assert.match(server, /password_hash = COALESCE/);
+  assert.match(server, /session_version = session_version \+ \?/);
+});
+
+test("successful and failed logins are retained for owner audit review", () => {
+  assert.match(server, /recordLoginHistory\(request, \{[\s\S]*?outcome: "failed"/);
+  assert.match(server, /recordLoginHistory\(request, \{[\s\S]*?outcome: "success"/);
+  assert.match(server, /customer_credit_login_history/);
+  assert.match(server, /\/api\/login-history[\s\S]*?requireEnterpriseOwner\(session\)/);
+  assert.match(html, /Login History/);
+});

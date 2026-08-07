@@ -117,12 +117,14 @@ const elements = {
   staffEmail: document.querySelector("#staffEmail"),
   staffEmailLabel: document.querySelector("#staffEmailLabel"),
   staffRole: document.querySelector("#staffRole"),
+  staffStatus: document.querySelector("#staffStatus"),
   staffPassword: document.querySelector("#staffPassword"),
   cancelStaffEditButton: document.querySelector("#cancelStaffEditButton"),
   saveStaffButton: document.querySelector("#saveStaffButton"),
   staffList: document.querySelector("#staffList"),
   activitySection: document.querySelector("#activitySection"),
   activityList: document.querySelector("#activityList"),
+  loginHistoryList: document.querySelector("#loginHistoryList"),
   refreshActivityButton: document.querySelector("#refreshActivityButton"),
   enterpriseAccessDialog: document.querySelector("#enterpriseAccessDialog"),
   enterpriseAccessForm: document.querySelector("#enterpriseAccessForm"),
@@ -1027,20 +1029,22 @@ async function loadEnterpriseUsers() {
 function renderEnterpriseUsers() {
   elements.staffList.innerHTML = state.enterpriseUsers
     .map((user) => {
-      const isOwner = user.role === "owner";
+      const isSelf = user.id === state.user.id;
+      const nextStatus = user.status === "inactive" ? "active" : "inactive";
       return `
         <div class="staff-item">
           <div>
-            <strong>${escapeHtml(user.displayName)} <span class="role-badge">${escapeHtml(user.role)}</span></strong>
+            <strong>${escapeHtml(user.displayName)} <span class="role-badge">${escapeHtml(user.role)}</span> <span class="role-badge">${escapeHtml(user.status)}</span></strong>
             <span>${escapeHtml(user.username)} - ${escapeHtml(user.email || "no email")}${user.emailVerified ? " - verified" : " - unverified"}${user.mustChangePassword ? " - password change required" : ""}</span>
           </div>
           ${
-            isOwner
+            isSelf
               ? ""
               : `
                 <div class="staff-actions">
                   <button class="ghost-button compact-button" data-user-action="edit" data-id="${escapeHtml(user.id)}" type="button">Edit</button>
-                  <button class="ghost-button compact-button danger-button" data-user-action="remove" data-id="${escapeHtml(user.id)}" type="button">Remove</button>
+                  <button class="ghost-button compact-button" data-user-action="reset" data-id="${escapeHtml(user.id)}" type="button">Reset Password</button>
+                  ${user.role === "employee" ? `<button class="ghost-button compact-button ${nextStatus === "inactive" ? "danger-button" : ""}" data-user-action="status" data-status="${nextStatus}" data-id="${escapeHtml(user.id)}" type="button">${nextStatus === "active" ? "Activate" : "Deactivate"}</button>` : ""}
                 </div>
               `
           }
@@ -1066,6 +1070,7 @@ function editStaffUser(userId) {
   elements.staffUsername.value = user.username;
   elements.staffEmail.value = user.email || "";
   elements.staffRole.value = user.role;
+  elements.staffStatus.value = user.status || "active";
   elements.staffPassword.value = "";
   elements.staffPassword.required = false;
   elements.saveStaffButton.textContent = "Save Employee Changes";
@@ -1081,6 +1086,7 @@ async function saveStaffUser(event) {
     username: elements.staffUsername.value.trim(),
     email: elements.staffEmail.value.trim(),
     role: elements.staffRole.value,
+    status: elements.staffStatus.value,
   };
   if (elements.staffPassword.value) body.password = elements.staffPassword.value;
   try {
@@ -1108,13 +1114,39 @@ async function removeStaffUser(userId) {
   }
 }
 
+async function changeStaffStatus(userId, status) {
+  const user = state.enterpriseUsers.find((item) => item.id === userId);
+  if (!user) return;
+  await mysqlRequest(`/users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+  await Promise.all([loadEnterpriseUsers(), loadActivity()]);
+  toast(`Employee ${status}`);
+}
+
 async function loadActivity() {
   try {
-    const result = await mysqlRequest("/activity");
-    renderActivity(result.activity);
+    const [activityResult, loginResult] = await Promise.all([
+      mysqlRequest("/activity"),
+      mysqlRequest("/login-history"),
+    ]);
+    renderActivity(activityResult.activity);
+    renderLoginHistory(loginResult.history);
   } catch (error) {
     elements.activityList.innerHTML = `<p class="invitation-empty">${escapeHtml(error.message)}</p>`;
   }
+}
+
+function renderLoginHistory(history) {
+  elements.loginHistoryList.innerHTML = history.length
+    ? history.map((entry) => `
+      <article class="activity-item">
+        <strong>${escapeHtml(entry.username)} — ${escapeHtml(entry.outcome)}</strong>
+        <span>${escapeHtml(entry.ipAddress || "Unknown device address")}</span>
+        <time>${escapeHtml(formatDateTime(entry.createdAt))}</time>
+      </article>`).join("")
+    : '<p class="invitation-empty">No login history recorded yet.</p>';
 }
 
 function renderActivity(activity) {
@@ -1317,7 +1349,11 @@ function bindEvents() {
     const button = event.target.closest("button[data-user-action]");
     if (!button) return;
     if (button.dataset.userAction === "edit") editStaffUser(button.dataset.id);
-    if (button.dataset.userAction === "remove") removeStaffUser(button.dataset.id);
+    if (button.dataset.userAction === "reset") {
+      editStaffUser(button.dataset.id);
+      elements.staffPassword.focus();
+    }
+    if (button.dataset.userAction === "status") changeStaffStatus(button.dataset.id, button.dataset.status);
   });
   elements.enterpriseList.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-enterprise-action]");

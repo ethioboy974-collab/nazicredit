@@ -505,28 +505,14 @@ async function handleRequest(request, response) {
       return;
     }
 
-    if (requestUrl.pathname === "/admin" || requestUrl.pathname === "/admin.html") {
-      redirect(response, "/index.html");
+    if (isOwnerOnlyPage(requestUrl.pathname) && session.role !== "owner") {
+      sendAccessDenied(response);
       return;
     }
 
-    if (
-      (requestUrl.pathname === "/finance-dashboard.html" || requestUrl.pathname === "/finance-dashboard")
-      && session.role !== "owner"
-    ) {
-      redirect(response, "/index.html");
-      return;
-    }
-    if ((requestUrl.pathname === "/time-clock-admin.html" || requestUrl.pathname === "/time-clock-admin")
-        && session.role !== "owner") {
-      redirect(response, "/time-clock.html");
-      return;
-    }
-    if (
-      (requestUrl.pathname === "/ai-dashboard.html" || requestUrl.pathname === "/ai-dashboard")
-      && session.role !== "owner"
-    ) {
-      redirect(response, "/index.html");
+    if ((requestUrl.pathname === "/admin" || requestUrl.pathname === "/admin.html")
+        && !isPlatformAdminSession(session)) {
+      sendAccessDenied(response);
       return;
     }
     if (
@@ -605,6 +591,13 @@ async function handleLoginRequest(request, response, requestUrl) {
   const user = await findEnterpriseUser(enterpriseCode, username);
   if (!user || user.enterpriseStatus !== "active" || user.employmentStatus === "inactive"
       || !(await passwordMatches(params.password || "", user.passwordHash))) {
+    await recordLoginHistory(request, {
+      enterpriseId: user?.enterpriseId || null,
+      enterpriseCode,
+      userId: user?.userId || null,
+      username,
+      outcome: "failed",
+    });
     recordFailedLogin(clientKey);
     sendLoginPage(response, "Wrong enterprise, username, or password.", {
       enterpriseCode,
@@ -614,6 +607,13 @@ async function handleLoginRequest(request, response, requestUrl) {
   }
 
   clearLoginAttempts(clientKey);
+  await recordLoginHistory(request, {
+    enterpriseId: user.enterpriseId,
+    enterpriseCode,
+    userId: user.userId,
+    username,
+    outcome: "success",
+  });
   await recordAudit(pool, user, {
     action: "account.login",
     entityType: "user",
@@ -1491,6 +1491,12 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/login-history") {
+    requireEnterpriseOwner(session);
+    sendJson(response, 200, { ok: true, history: await listLoginHistory(session.enterpriseId) });
+    return;
+  }
+
   if (requestUrl.pathname === "/api/admin/enterprises") {
     requirePlatformAdmin(session);
     if (request.method === "GET") {
@@ -1669,7 +1675,7 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/vendors/mark-paid") {
-    requireRecordManager(session);
+    requireEnterpriseOwner(session);
     const body = await readJsonBody(request);
     const result = await markVendorsPaid(session, body.ids);
     sendJson(response, 200, { ok: true, ...result, vendors: await listVendors(session.enterpriseId) });
@@ -1677,7 +1683,7 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/vendors/mark-unpaid") {
-    requireRecordManager(session);
+    requireEnterpriseOwner(session);
     const body = await readJsonBody(request);
     const result = await setVendorsUnpaid(session, body.ids);
     sendJson(response, 200, { ok: true, ...result, vendors: await listVendors(session.enterpriseId) });
@@ -1685,7 +1691,7 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/vendors/clear-paid") {
-    requireRecordManager(session);
+    requireEnterpriseOwner(session);
     const body = await readJsonBody(request);
     const ids = [...new Set(
       (Array.isArray(body.ids) ? body.ids : [])
@@ -2006,7 +2012,7 @@ async function ensureSchema() {
       enterprise_id VARCHAR(64) NOT NULL,
       username VARCHAR(80) NOT NULL,
       display_name VARCHAR(160) NOT NULL,
-      role ENUM('owner', 'staff', 'viewer') NOT NULL DEFAULT 'owner',
+      role ENUM('owner', 'employee') NOT NULL DEFAULT 'employee',
       password_hash VARCHAR(255) NOT NULL,
       must_change_password TINYINT(1) NOT NULL DEFAULT 0,
       session_version INT NOT NULL DEFAULT 1,
@@ -2056,6 +2062,9 @@ async function ensureSchema() {
     "uq_customer_credit_user_enterprise_email",
     "ADD UNIQUE INDEX uq_customer_credit_user_enterprise_email (enterprise_id, email)",
   );
+  await pool.query("ALTER TABLE customer_credit_users MODIFY COLUMN role ENUM('owner','employee','staff','viewer') NOT NULL DEFAULT 'employee'");
+  await pool.query("UPDATE customer_credit_users SET role='employee' WHERE role IN ('staff','viewer')");
+  await pool.query("ALTER TABLE customer_credit_users MODIFY COLUMN role ENUM('owner','employee') NOT NULL DEFAULT 'employee'");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_credit_time_entries (
@@ -2439,6 +2448,22 @@ async function ensureSchema() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_credit_login_history (
+      id VARCHAR(64) PRIMARY KEY,
+      enterprise_id VARCHAR(64) NULL,
+      enterprise_code VARCHAR(80) NOT NULL,
+      user_id VARCHAR(64) NULL,
+      username VARCHAR(80) NOT NULL,
+      outcome ENUM('success', 'failed') NOT NULL,
+      ip_address VARCHAR(80) NULL,
+      user_agent VARCHAR(255) NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_login_history_enterprise_created (enterprise_id, created_at),
+      INDEX idx_login_history_username_created (enterprise_code, username, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_credit_password_reset_tokens (
       id VARCHAR(64) PRIMARY KEY,
       user_id VARCHAR(64) NOT NULL,
@@ -2669,8 +2694,23 @@ function requirePlatformAdmin(session) {
 
 function requireEnterpriseOwner(session) {
   if (session.role !== "owner") {
-    throw httpError(403, "Enterprise owner access required");
+    throw httpError(403, "Access Denied");
   }
+}
+
+function isOwnerOnlyPage(pathname) {
+  return new Set([
+    "/finance-dashboard", "/finance-dashboard.html", "/finance-dashboard.js", "/finance-dashboard.css",
+    "/ai-dashboard", "/ai-dashboard.html", "/ai-dashboard.js", "/ai-dashboard.css",
+    "/time-clock-admin", "/time-clock-admin.html", "/time-clock-admin.js", "/time-clock-admin.css",
+    "/owner-pin.html", "/owner-pin.js",
+    "/admin", "/admin.html", "/admin.js", "/admin.css",
+  ]).has(pathname);
+}
+
+function sendAccessDenied(response) {
+  response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+  response.end("Access Denied");
 }
 
 function requireOrderNotificationManager(session) {
@@ -2696,6 +2736,10 @@ function isEmployeeRole(role) {
 
 function publicRole(role) {
   return role === "owner" ? "owner" : "employee";
+}
+
+function normalizeAccountRole(role) {
+  return String(role || "employee").toLowerCase() === "owner" ? "owner" : "employee";
 }
 
 function hasOwnerPinAccess(session) {
@@ -2761,6 +2805,18 @@ async function recordAudit(executor, session, event) {
       event.entityId || null,
       String(event.summary || event.action).slice(0, 255),
     ],
+  );
+}
+
+async function recordLoginHistory(request, event) {
+  const forwardedFor = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const ipAddress = (forwardedFor || request.socket?.remoteAddress || "").slice(0, 80) || null;
+  await pool.query(
+    `INSERT INTO customer_credit_login_history
+      (id, enterprise_id, enterprise_code, user_id, username, outcome, ip_address, user_agent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cryptoRandomId(), event.enterpriseId, event.enterpriseCode, event.userId,
+      event.username, event.outcome, ipAddress, String(request.headers["user-agent"] || "").slice(0, 255) || null],
   );
 }
 
@@ -2851,13 +2907,14 @@ async function listEnterpriseUsers(enterpriseId) {
         username,
         display_name AS displayName,
         role,
+        employment_status AS status,
         must_change_password AS mustChangePassword,
-        email || null,
+        email,
         email_verified_at AS emailVerifiedAt,
         DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt
       FROM customer_credit_users
       WHERE enterprise_id = ?
-      ORDER BY FIELD(role, 'owner', 'staff', 'viewer'), display_name, username
+      ORDER BY FIELD(role, 'owner', 'employee'), display_name, username
     `,
     [enterpriseId],
   );
@@ -2872,7 +2929,7 @@ async function listEnterpriseUsers(enterpriseId) {
 async function createEnterpriseUser(session, body) {
   const username = validateAccountUsername(body.username);
   const displayName = String(body.displayName || "").trim().slice(0, 160);
-  const role = "staff";
+  const role = normalizeAccountRole(body.role);
   const password = validateAccountPassword(body.password);
   const email = config.email.apiKey ? normalizeEmail(body.email) : "";
   if (config.email.apiKey && !isValidEmail(email)) {
@@ -2886,8 +2943,8 @@ async function createEnterpriseUser(session, body) {
     await pool.query(
       `
         INSERT INTO customer_credit_users
-          (id, enterprise_id, username, display_name, role, password_hash, must_change_password, email)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+          (id, enterprise_id, username, display_name, role, password_hash, must_change_password, email, employment_status)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'active')
       `,
       [
         userId,
@@ -2926,7 +2983,7 @@ async function createEnterpriseUser(session, body) {
 async function updateEnterpriseUser(session, userId, body) {
   const [rows] = await pool.query(
     `
-      SELECT id, username, display_name AS displayName, role, email
+      SELECT id, username, display_name AS displayName, role, email, employment_status AS status
       FROM customer_credit_users
       WHERE id = ? AND enterprise_id = ?
       LIMIT 1
@@ -2935,13 +2992,21 @@ async function updateEnterpriseUser(session, userId, body) {
   );
   const existing = rows[0];
   if (!existing) throw httpError(404, "User account not found");
-  if (existing.role === "owner") throw httpError(400, "The owner account is managed separately");
+  if (existing.id === session.userId) throw httpError(400, "Use your Account section to update your own account");
 
   const username = body.username ? validateAccountUsername(body.username) : existing.username;
   const displayName = body.displayName
     ? String(body.displayName).trim().slice(0, 160)
     : existing.displayName;
-  const role = "staff";
+  const role = normalizeAccountRole(body.role || existing.role);
+  const status = body.status === "inactive" ? "inactive" : "active";
+  if (existing.role === "owner" && role !== "owner") {
+    const [ownerCountRows] = await pool.query(
+      "SELECT COUNT(*) AS total FROM customer_credit_users WHERE enterprise_id=? AND role='owner' AND employment_status='active'",
+      [session.enterpriseId],
+    );
+    if (Number(ownerCountRows[0]?.total || 0) <= 1) throw httpError(400, "At least one active owner is required");
+  }
   const email = config.email.apiKey && body.email ? normalizeEmail(body.email) : existing.email;
   if (config.email.apiKey && !isValidEmail(email)) {
     throw httpError(400, "Enter a valid recovery email address");
@@ -2950,6 +3015,7 @@ async function updateEnterpriseUser(session, userId, body) {
   const passwordHash = body.password
     ? await hashPassword(validateAccountPassword(body.password))
     : null;
+  const accessChanged = passwordHash || role !== publicRole(existing.role) || status !== existing.status ? 1 : 0;
 
   try {
     await pool.query(
@@ -2959,22 +3025,24 @@ async function updateEnterpriseUser(session, userId, body) {
           username = ?,
           display_name = ?,
           role = ?,
+          employment_status = ?,
           email = ?,
           email_verified_at = CASE WHEN ? THEN NULL ELSE email_verified_at END,
           password_hash = COALESCE(?, password_hash),
           must_change_password = CASE WHEN ? IS NULL THEN must_change_password ELSE 1 END,
-          session_version = CASE WHEN ? IS NULL THEN session_version ELSE session_version + 1 END
+          session_version = session_version + ?
         WHERE id = ? AND enterprise_id = ?
       `,
       [
         username,
         displayName,
         role,
+        status,
         email,
         emailChanged,
         passwordHash,
         passwordHash,
-        passwordHash,
+        accessChanged,
         userId,
         session.enterpriseId,
       ],
@@ -2987,7 +3055,7 @@ async function updateEnterpriseUser(session, userId, body) {
     action: "user.updated",
     entityType: "user",
     entityId: userId,
-    summary: `Updated ${username} (${role})`,
+    summary: `Updated ${username} (${role}, ${status})${passwordHash ? " and reset password" : ""}`,
   });
   if (emailChanged) {
     try {
@@ -3012,16 +3080,16 @@ async function deleteEnterpriseUser(session, userId) {
     [userId, session.enterpriseId],
   );
   if (!rows.length) throw httpError(404, "User account not found");
-  if (rows[0].role === "owner") throw httpError(400, "The owner account cannot be removed");
+  if (rows[0].role === "owner") throw httpError(400, "An owner account cannot be deactivated here");
   await pool.query(
-    "DELETE FROM customer_credit_users WHERE id = ? AND enterprise_id = ?",
+    "UPDATE customer_credit_users SET employment_status='inactive', session_version=session_version+1 WHERE id = ? AND enterprise_id = ?",
     [userId, session.enterpriseId],
   );
   await recordAudit(pool, session, {
-    action: "user.removed",
+    action: "user.deactivated",
     entityType: "user",
     entityId: userId,
-    summary: `Removed user ${rows[0].username}`,
+    summary: `Deactivated user ${rows[0].username}`,
   });
 }
 
@@ -3041,6 +3109,18 @@ async function listEnterpriseActivity(enterpriseId) {
       ORDER BY created_at DESC
       LIMIT 150
     `,
+    [enterpriseId],
+  );
+  return rows;
+}
+
+async function listLoginHistory(enterpriseId) {
+  const [rows] = await pool.query(
+    `SELECT username, outcome, ip_address AS ipAddress, user_agent AS userAgent,
+      DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS createdAt
+     FROM customer_credit_login_history
+     WHERE enterprise_id = ?
+     ORDER BY created_at DESC LIMIT 250`,
     [enterpriseId],
   );
   return rows;
@@ -3142,7 +3222,7 @@ async function listManagedEnterpriseUsers(enterpriseId) {
       FROM customer_credit_users users
       INNER JOIN customer_credit_enterprises enterprises ON enterprises.id = users.enterprise_id
       WHERE enterprises.id = ? AND enterprises.code <> ?
-      ORDER BY FIELD(users.role, 'owner', 'staff', 'viewer'), users.display_name
+      ORDER BY FIELD(users.role, 'owner', 'employee'), users.display_name
     `,
     [enterpriseId, config.auth.defaultEnterpriseCode],
   );
@@ -4399,7 +4479,7 @@ async function saveTimeClockEmployee(session, body) {
   try {
     await pool.query(`INSERT INTO customer_credit_users
       (id,enterprise_id,username,display_name,role,password_hash,must_change_password,employee_number,phone,employment_status)
-      VALUES (?,?,?,?, 'staff',?,1,?,?,?)`,
+      VALUES (?,?,?,?, 'employee',?,1,?,?,?)`,
     [userId, session.enterpriseId, username, displayName, await hashPassword(password), employeeNumber, phone, status]);
   } catch (error) { if (error.code === "ER_DUP_ENTRY") throw httpError(409,"Employee ID or username already exists"); throw error; }
   await recordAudit(pool, session, { action:"time_clock.employee_created", entityType:"user", entityId:userId,
