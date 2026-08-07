@@ -1428,22 +1428,31 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
-  const temporaryPasswordCreditEntry = request.method === "POST"
-    && ["/api/records", "/api/employee/credit-payment"].includes(requestUrl.pathname);
+  const temporaryPasswordEmployeeEntry = request.method === "POST"
+    && isEmployeeRole(session.role)
+    && [
+      "/api/records",
+      "/api/employee/credit-payment",
+      "/api/vendor-accounts",
+      "/api/vendors",
+    ].includes(requestUrl.pathname);
   if (session.mustChangePassword && request.method !== "GET"
-      && requestUrl.pathname !== "/api/account/password" && !temporaryPasswordCreditEntry) {
+      && requestUrl.pathname !== "/api/account/password" && !temporaryPasswordEmployeeEntry) {
     throw httpError(403, "Change your temporary password before making updates");
   }
 
   if (request.method === "PATCH" && requestUrl.pathname === "/api/account/password") {
     const body = await readJsonBody(request);
-    const sessionVersion = await changeOwnPassword(
+    const passwordState = await changeOwnPassword(
       session,
       body.currentPassword,
       body.newPassword,
     );
-    setSession(response, { ...session, mustChangePassword: false, sessionVersion });
-    sendJson(response, 200, { ok: true });
+    setSession(response, { ...session, ...passwordState });
+    sendJson(response, 200, {
+      ok: true,
+      user: { mustChangePassword: passwordState.mustChangePassword },
+    });
     return;
   }
 
@@ -2849,17 +2858,27 @@ async function changeOwnPassword(session, currentPassword, newPassword) {
   if (!users.length || !(await passwordMatches(String(currentPassword || ""), users[0].passwordHash))) {
     throw httpError(400, "Current password is incorrect");
   }
-  await pool.query(
+  const [updateResult] = await pool.query(
     "UPDATE customer_credit_users SET password_hash = ?, must_change_password = 0, session_version = session_version + 1 WHERE id = ? AND enterprise_id = ?",
     [await hashPassword(password), session.userId, session.enterpriseId],
   );
+  if (Number(updateResult.affectedRows) !== 1) throw httpError(404, "User account not found");
+  const [updatedUsers] = await pool.query(
+    `SELECT must_change_password AS mustChangePassword, session_version AS sessionVersion
+     FROM customer_credit_users WHERE id = ? AND enterprise_id = ? LIMIT 1`,
+    [session.userId, session.enterpriseId],
+  );
+  if (!updatedUsers.length) throw httpError(404, "User account not found");
   await recordAudit(pool, session, {
     action: "account.password_changed",
     entityType: "user",
     entityId: session.userId,
     summary: "Changed account password",
   });
-  return Number(session.sessionVersion || 1) + 1;
+  return {
+    mustChangePassword: Boolean(updatedUsers[0].mustChangePassword),
+    sessionVersion: Number(updatedUsers[0].sessionVersion || 1),
+  };
 }
 
 async function updateOwnRecoveryEmail(session, value) {

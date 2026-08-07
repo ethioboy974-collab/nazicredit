@@ -1090,14 +1090,14 @@ async function changePassword(event) {
     return;
   }
   try {
-    await mysqlRequest("/account/password", {
+    const result = await mysqlRequest("/account/password", {
       method: "PATCH",
       body: JSON.stringify({
         currentPassword: elements.currentPassword.value,
         newPassword: elements.newPassword.value,
       }),
     });
-    state.user.mustChangePassword = false;
+    state.user.mustChangePassword = Boolean(result.user?.mustChangePassword);
     elements.recordForm.hidden = !state.permissions.manageRecords;
     elements.employeePasswordNotice.hidden = true;
     elements.passwordForm.reset();

@@ -10,7 +10,7 @@ let currentUser = { username: "owner", role: "Admin" };
 let vendorListOpen = false;
 const selectedStatementEntries = new Set();
 let clearPaidArmed = false;
-let accessState = { role: "employee", ownerPinUnlocked: false };
+let accessState = { role: "employee", ownerPinUnlocked: false, manageRecords: false };
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const elements = {
@@ -119,7 +119,7 @@ function applyAiVendorDraft() {
 
 async function loadRoleAccess() {
   if (["127.0.0.1", "localhost"].includes(window.location.hostname) || window.location.protocol === "file:") {
-    accessState = { role: "owner", ownerPinUnlocked: true };
+    accessState = { role: "owner", ownerPinUnlocked: true, manageRecords: true };
   } else {
     try {
       const result = await databaseRequest("/me");
@@ -129,9 +129,10 @@ async function loadRoleAccess() {
         ownerPinUnlocked: Boolean(result.permissions?.ownerPinUnlocked),
         enterpriseCode: result.enterprise?.code || "",
         enterpriseName: result.enterprise?.name || "",
+        manageRecords: Boolean(result.permissions?.manageRecords),
       };
     } catch {
-      accessState = { role: "employee", ownerPinUnlocked: false };
+      accessState = { role: "employee", ownerPinUnlocked: false, manageRecords: false };
     }
   }
   const statementTab = document.querySelector('[data-view="statement"]');
@@ -144,6 +145,7 @@ async function loadRoleAccess() {
   document.querySelector("#employeeManagementLink").hidden = accessState.role !== "owner";
   elements.exportCsv.hidden = accessState.role !== "owner";
   elements.printReport.hidden = accessState.role !== "owner";
+  applyAuthState();
   if (accessState.role === "owner") {
     if (window.location.hash === "#statement") statementTab.click();
     else dashboardTab.click();
@@ -338,11 +340,9 @@ function applyAuthState() {
   document.body.classList.toggle("locked", !signedIn);
   elements.userLine.textContent = signedIn ? `Signed in as ${currentUser.role}` : "Signed out";
 
-  const adminButtons = [elements.vendorForm.querySelector("button")];
-  adminButtons.forEach((button) => {
-    button.disabled = signedIn && !isAdmin();
-    button.title = button.disabled ? "Admin access required" : "";
-  });
+  const addVendorButton = elements.vendorForm.querySelector("button");
+  addVendorButton.disabled = signedIn && !canCreateVendor();
+  addVendorButton.title = addVendorButton.disabled ? "Vendor creation access required" : "";
 
   renderStatement();
 }
@@ -438,8 +438,8 @@ function bindNavigation() {
 function bindForms() {
   elements.vendorForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!isAdmin()) {
-      showToast("Only an admin can add vendors.");
+    if (!canCreateVendor()) {
+      showToast("You do not have permission to add vendors.");
       return;
     }
 
@@ -1697,6 +1697,10 @@ function actionLabel(type) {
 
 function isAdmin() {
   return currentUser && currentUser.role === "Admin";
+}
+
+function canCreateVendor() {
+  return Boolean(accessState.manageRecords);
 }
 
 function emptyRow(message, columns) {
