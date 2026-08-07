@@ -48,6 +48,7 @@ const elements = {
   metricPaid: document.querySelector("#metricPaid"),
   metricBalance: document.querySelector("#metricBalance"),
   metricOpen: document.querySelector("#metricOpen"),
+  creditSummary: document.querySelector("#creditSummary"),
   storageStatus: document.querySelector("#storageStatus"),
   syncButton: document.querySelector("#syncButton"),
   printLedgerButton: document.querySelector("#printLedgerButton"),
@@ -374,6 +375,8 @@ async function loadSessionInfo() {
     elements.financeLink.hidden = state.user.role !== "owner";
     elements.aiDashboardLink.hidden = state.user.role !== "owner";
     elements.employeeManagementLink.hidden = state.user.role !== "owner";
+    elements.creditSummary.hidden = state.user.role !== "owner";
+    elements.printLedgerButton.hidden = state.user.role !== "owner";
     elements.teamSection.hidden = !state.permissions.manageUsers;
     elements.platformSection.hidden =
       !state.permissions.manageSignupInvites && !state.permissions.manageEnterprises;

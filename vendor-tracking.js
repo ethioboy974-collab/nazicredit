@@ -134,10 +134,17 @@ async function loadRoleAccess() {
     }
   }
   const statementTab = document.querySelector('[data-view="statement"]');
+  const dashboardTab = document.querySelector("#vendorDashboardTab");
   statementTab.hidden = accessState.role !== "owner";
+  dashboardTab.hidden = accessState.role !== "owner";
   document.querySelector("#vendorBalancesPanel").hidden = accessState.role !== "owner";
   document.querySelector("#savedHistoryPanel").hidden = accessState.role !== "owner";
   document.querySelector("#employeeManagementLink").hidden = accessState.role !== "owner";
+  elements.exportCsv.hidden = accessState.role !== "owner";
+  elements.printReport.hidden = accessState.role !== "owner";
+  if (accessState.role !== "owner" && document.querySelector("#dashboard").classList.contains("active")) {
+    document.querySelector('[data-view="receive"]').click();
+  }
   if (window.location.hash === "#statement" && accessState.role === "owner") statementTab.click();
 }
 

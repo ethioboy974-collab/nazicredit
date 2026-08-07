@@ -27,6 +27,17 @@ test("restricted pages and APIs enforce owner access on the server", () => {
   assert.match(server, /\/api\/users[\s\S]*?requireEnterpriseOwner\(session\)/);
 });
 
+test("employee screens hide financial summary dashboards", () => {
+  const vendorHtml = fs.readFileSync(path.join(root, "vendor-tracking.html"), "utf8");
+  const vendorClient = fs.readFileSync(path.join(root, "vendor-tracking.js"), "utf8");
+  assert.match(html, /id="creditSummary"/);
+  assert.match(client, /creditSummary\.hidden = state\.user\.role !== "owner"/);
+  assert.match(client, /printLedgerButton\.hidden = state\.user\.role !== "owner"/);
+  assert.match(vendorHtml, /id="vendorDashboardTab"/);
+  assert.match(vendorClient, /dashboardTab\.hidden = accessState\.role !== "owner"/);
+  assert.match(vendorClient, /\[data-view="receive"\][\s\S]*?\.click\(\)/);
+});
+
 test("owner employee management supports roles, passwords, and activation status", () => {
   const management = fs.readFileSync(path.join(root, "employee-management.html"), "utf8");
   assert.match(html, /id="employeeManagementLink"/);
