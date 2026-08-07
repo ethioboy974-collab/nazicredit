@@ -1894,12 +1894,13 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/records") {
-    sendJson(response, 200, { ok: true, records: await listRecords(session.enterpriseId) });
+    sendJson(response, 200, { ok: true,
+      records: session.role === "owner" ? await listRecords(session.enterpriseId) : [] });
     return;
   }
 
   if (request.method === "PUT" && requestUrl.pathname === "/api/records") {
-    requireRecordManager(session);
+    requireEnterpriseOwner(session);
     const body = await readJsonBody(request);
     await saveRecords(
       session,
@@ -1927,7 +1928,7 @@ async function handleApiRequest(request, response, requestUrl, session) {
 
   const paymentMatch = requestUrl.pathname.match(/^\/api\/records\/([^/]+)\/payments$/);
   if (request.method === "POST" && paymentMatch) {
-    requireRecordManager(session);
+    requireEnterpriseOwner(session);
     const body = await readJsonBody(request);
     const payment = normalizePayment(body);
     await insertPayment(session.enterpriseId, paymentMatch[1], payment);

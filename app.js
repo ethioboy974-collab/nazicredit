@@ -49,6 +49,7 @@ const elements = {
   metricBalance: document.querySelector("#metricBalance"),
   metricOpen: document.querySelector("#metricOpen"),
   creditSummary: document.querySelector("#creditSummary"),
+  creditRecordsPanel: document.querySelector("#creditRecordsPanel"),
   storageStatus: document.querySelector("#storageStatus"),
   syncButton: document.querySelector("#syncButton"),
   printLedgerButton: document.querySelector("#printLedgerButton"),
@@ -377,6 +378,8 @@ async function loadSessionInfo() {
     elements.employeeManagementLink.hidden = state.user.role !== "owner";
     elements.creditSummary.hidden = state.user.role !== "owner";
     elements.printLedgerButton.hidden = state.user.role !== "owner";
+    elements.syncButton.hidden = state.user.role !== "owner";
+    elements.creditRecordsPanel.hidden = state.user.role !== "owner";
     elements.teamSection.hidden = !state.permissions.manageUsers;
     elements.platformSection.hidden =
       !state.permissions.manageSignupInvites && !state.permissions.manageEnterprises;
@@ -642,6 +645,19 @@ async function addRecord(event) {
     creditTime: elements.creditTime.value,
     creditAmount: elements.creditAmount.value,
   });
+
+  if (state.settings.useMysql && state.user?.role === "employee") {
+    try {
+      await mysqlRequest("/records", { method: "POST", body: JSON.stringify(record) });
+      elements.recordForm.reset();
+      elements.creditDate.value = today();
+      elements.creditTime.value = currentTime();
+      toast("Credit entry saved");
+    } catch (error) {
+      toast(error.message);
+    }
+    return;
+  }
 
   state.records.push(record);
   elements.recordForm.reset();

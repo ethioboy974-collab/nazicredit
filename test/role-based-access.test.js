@@ -44,6 +44,16 @@ test("employee screens hide financial summary dashboards", () => {
   assert.match(fs.readFileSync(path.join(root, "vendor-tracking.css"), "utf8"), /\[hidden\][\s\S]*?display: none !important/);
 });
 
+test("employees can only add entries in the credit section", () => {
+  assert.match(html, /id="creditRecordsPanel"/);
+  assert.match(client, /creditRecordsPanel\.hidden = state\.user\.role !== "owner"/);
+  assert.match(client, /syncButton\.hidden = state\.user\.role !== "owner"/);
+  assert.match(client, /state\.user\?\.role === "employee"[\s\S]*?mysqlRequest\("\/records", \{ method: "POST"/);
+  assert.match(server, /records: session\.role === "owner" \? await listRecords[\s\S]*?: \[\]/);
+  assert.match(server, /request\.method === "PUT"[^]*?\/api\/records[^]*?requireEnterpriseOwner\(session\)/);
+  assert.match(server, /request\.method === "POST" && paymentMatch[^]*?requireEnterpriseOwner\(session\)/);
+});
+
 test("owner employee management supports roles, passwords, and activation status", () => {
   const management = fs.readFileSync(path.join(root, "employee-management.html"), "utf8");
   assert.match(html, /id="employeeManagementLink"/);
