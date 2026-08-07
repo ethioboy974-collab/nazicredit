@@ -11,6 +11,16 @@ test("next receiving entry keeps the last product, unit, and price", () => {
   assert.match(source, /elements\.product\.value = nextProduct/);
   assert.match(source, /elements\.unit\.value = nextUnit/);
   assert.match(source, /elements\.unitPrice\.value = nextUnitPrice/);
+  assert.match(source, /setReceivingItemLocked\(true\)/);
+  assert.match(source, /lockLatestReceivingItem\(\)/);
+});
+
+test("item details lock after saving and can be intentionally changed", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.js"), "utf8");
+  assert.match(html, /id="changeReceivingItem"/);
+  assert.match(source, /field\.disabled = locked/);
+  assert.match(source, /setReceivingItemLocked\(false\)/);
 });
 
 test("saved record item details remain editable", () => {

@@ -33,6 +33,7 @@ const elements = {
   vendorEditForm: document.querySelector("#vendorEditForm"),
   saveVendorEdit: document.querySelector("#saveVendorEdit"),
   deliveryForm: document.querySelector("#deliveryForm"),
+  changeReceivingItem: document.querySelector("#changeReceivingItem"),
   vendorForm: document.querySelector("#vendorForm"),
   vendorList: document.querySelector("#vendorList"),
   vendorSearch: document.querySelector("#vendorSearch"),
@@ -74,6 +75,7 @@ function init() {
   window.addEventListener("resize", enforceMobileView);
   applyAuthState();
   render();
+  lockLatestReceivingItem();
   enforceMobileView();
   loadDatabaseState().then(applyAiVendorDraft).catch(() => {
     showToast("Using the local vendor ledger");
@@ -99,6 +101,7 @@ function applyAiVendorDraft() {
     const wanted = String(d.vendorName || "").toLowerCase();
     const vendor = state.vendors.find((item) => item.name.toLowerCase().includes(wanted));
     if (vendor) form.elements.vendorName.value = vendor.name;
+    setReceivingItemLocked(false);
     updateAcceptedQuantity();
     showToast("AI draft loaded. Review it before saving.");
   } catch {}
@@ -197,6 +200,7 @@ async function loadDatabaseState() {
   elements.activeMonth.value = state.activeMonth;
   saveState();
   render();
+  lockLatestReceivingItem();
 }
 
 async function syncEntryToDatabase(entry) {
@@ -350,6 +354,7 @@ function bindNavigation() {
   });
   ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
     elements.deliveryForm.elements[name].addEventListener("input", updateAcceptedQuantity));
+  elements.changeReceivingItem.addEventListener("click", () => setReceivingItemLocked(false));
   elements.statementRows.addEventListener("click", handleStatementAction);
   elements.statementRows.addEventListener("change", handleStatementSelection);
   elements.selectAllStatementRows.addEventListener("change", toggleAllStatementRows);
@@ -429,10 +434,32 @@ function bindForms() {
     event.currentTarget.elements.product.value = nextProduct;
     event.currentTarget.elements.unit.value = nextUnit;
     event.currentTarget.elements.unitPrice.value = nextUnitPrice;
+    setReceivingItemLocked(true);
     setDefaultDates();
     showToast("Delivery saved.");
   });
 
+}
+
+function setReceivingItemLocked(locked) {
+  const form = elements.deliveryForm;
+  [form.elements.product, form.elements.unit, form.elements.unitPrice].forEach((field) => {
+    field.disabled = locked;
+    field.setAttribute("aria-readonly", String(locked));
+  });
+  elements.changeReceivingItem.hidden = !locked;
+}
+
+function lockLatestReceivingItem() {
+  const latest = [...state.entries]
+    .filter((entry) => entry.type === "DELIVERED")
+    .sort((left, right) => String(right.createdAt || right.date).localeCompare(String(left.createdAt || left.date)))[0];
+  if (!latest) { setReceivingItemLocked(false); return; }
+  const form = elements.deliveryForm;
+  form.elements.product.value = latest.product;
+  form.elements.unit.value = latest.unit;
+  form.elements.unitPrice.value = latest.unitPrice;
+  setReceivingItemLocked(true);
 }
 
 function addEntryFromForm(form, type) {
