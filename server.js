@@ -1612,7 +1612,13 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/vendors") {
-    sendJson(response, 200, { ok: true, vendors: await listVendors(session.enterpriseId) });
+    sendJson(response, 200, { ok: true,
+      vendors: session.role === "owner" ? await listVendors(session.enterpriseId) : [] });
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/vendors/receiving-defaults") {
+    sendJson(response, 200, { ok: true, defaults: await listVendorReceivingDefaults(session.enterpriseId) });
     return;
   }
 
@@ -3493,6 +3499,21 @@ async function listVendorAccounts(enterpriseId) {
   `, [enterpriseId]);
   return rows.map((row) => ({ ...row, phone: row.phone || "", email: row.email || "",
     createdAt: toIsoLike(row.createdAt) }));
+}
+
+async function listVendorReceivingDefaults(enterpriseId) {
+  const [rows] = await pool.query(`SELECT vendor_account_id AS vendorAccountId, vendor_name AS vendorName,
+      reference AS product, unit, amount AS unitPrice, created_at AS createdAt
+    FROM customer_credit_vendor_tracking WHERE enterprise_id = ?
+    ORDER BY created_at DESC, id DESC`, [enterpriseId]);
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = row.vendorAccountId || String(row.vendorName || "").trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((row) => ({ vendorAccountId: row.vendorAccountId || null, vendorName: row.vendorName,
+    product: row.product || "", unit: row.unit || "piece", unitPrice: Number(row.unitPrice || 0) }));
 }
 
 async function createVendorAccount(session, body) {

@@ -124,6 +124,8 @@ async function loadRoleAccess() {
   }
   const statementTab = document.querySelector('[data-view="statement"]');
   statementTab.hidden = accessState.role !== "owner";
+  document.querySelector("#vendorBalancesPanel").hidden = accessState.role !== "owner";
+  document.querySelector("#savedHistoryPanel").hidden = accessState.role !== "owner";
   if (window.location.hash === "#statement" && accessState.role === "owner") statementTab.click();
 }
 
@@ -143,10 +145,11 @@ async function databaseRequest(path, options = {}) {
 }
 
 async function loadDatabaseState() {
-  const [result, spoilageResult, accountResult] = await Promise.all([
+  const [result, spoilageResult, accountResult, defaultsResult] = await Promise.all([
     databaseRequest("/vendors"),
     databaseRequest("/vendors/spoilage-history"),
     databaseRequest("/vendor-accounts"),
+    databaseRequest("/vendors/receiving-defaults"),
   ]);
   const deliveries = Array.isArray(result.vendors) ? result.vendors : [];
   const vendorMap = new Map();
@@ -156,6 +159,12 @@ async function loadDatabaseState() {
       phone: account.phone || "", email: account.email || "", paymentMethod: "Cash" };
     vendorMap.set(vendor.name.toLowerCase(), vendor);
     vendorByAccountId.set(account.id, vendor);
+  }
+  const receivingDefaults = Array.isArray(defaultsResult.defaults) ? defaultsResult.defaults : [];
+  for (const item of receivingDefaults) {
+    const vendor = (item.vendorAccountId && vendorByAccountId.get(item.vendorAccountId))
+      || vendorMap.get(cleanName(item.vendorName || "").toLowerCase());
+    if (vendor) vendor.receivingDefault = { product: item.product, unit: item.unit, unitPrice: Number(item.unitPrice || 0) };
   }
   const entries = [];
   for (const delivery of deliveries) {
@@ -459,16 +468,17 @@ function updateReceivingItemForSelectedVendor() {
   const latest = [...state.entries]
     .filter((entry) => entry.type === "DELIVERED" && entry.vendorId === vendor.id)
     .sort((left, right) => String(right.createdAt || right.date).localeCompare(String(left.createdAt || left.date)))[0];
-  if (!latest) {
+  const itemDefault = latest || vendor.receivingDefault;
+  if (!itemDefault) {
     form.elements.product.value = "";
     form.elements.unit.value = "piece";
     form.elements.unitPrice.value = "";
     setReceivingItemLocked(false);
     return;
   }
-  form.elements.product.value = latest.product;
-  form.elements.unit.value = latest.unit;
-  form.elements.unitPrice.value = latest.unitPrice;
+  form.elements.product.value = itemDefault.product;
+  form.elements.unit.value = itemDefault.unit;
+  form.elements.unitPrice.value = itemDefault.unitPrice;
   setReceivingItemLocked(true);
 }
 
@@ -502,6 +512,10 @@ function addEntryFromForm(form, type) {
   };
 
   state.entries.push(entry);
+  const receivingVendor = findVendor(entry.vendorId);
+  if (receivingVendor) receivingVendor.receivingDefault = {
+    product: entry.product, unit: entry.unit, unitPrice: entry.unitPrice,
+  };
   state.activeMonth = entry.date.slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
   saveState();
