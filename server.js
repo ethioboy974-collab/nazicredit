@@ -1428,7 +1428,9 @@ async function handleApiRequest(request, response, requestUrl, session) {
     return;
   }
 
-  if (session.mustChangePassword && request.method !== "GET" && requestUrl.pathname !== "/api/account/password") {
+  const temporaryPasswordCreditEntry = request.method === "POST" && requestUrl.pathname === "/api/records";
+  if (session.mustChangePassword && request.method !== "GET"
+      && requestUrl.pathname !== "/api/account/password" && !temporaryPasswordCreditEntry) {
     throw httpError(403, "Change your temporary password before making updates");
   }
 

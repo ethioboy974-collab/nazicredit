@@ -55,6 +55,7 @@ test("employees can only add entries in the credit section", () => {
   assert.match(html, /id="employeePasswordNotice"/);
   assert.match(client, /recordForm\.hidden = !state\.permissions\.manageRecords/);
   assert.match(client, /employeePasswordNotice\.hidden = !state\.user\.mustChangePassword/);
+  assert.match(server, /temporaryPasswordCreditEntry = request\.method === "POST" && requestUrl\.pathname === "\/api\/records"/);
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {
