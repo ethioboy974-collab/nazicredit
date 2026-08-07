@@ -42,13 +42,19 @@ const elements = {
   statementSearch: document.querySelector("#statementSearch"),
   statementStatus: document.querySelector("#statementStatus"),
   printVendorName: document.querySelector("#printVendorName"),
+  printStoreName: document.querySelector("#printStoreName"),
   printReportPeriod: document.querySelector("#printReportPeriod"),
+  printGeneratedDate: document.querySelector("#printGeneratedDate"),
   statementEmpty: document.querySelector("#statementEmpty"),
   statementOverview: document.querySelector("#statementOverview"),
   statementTableWrap: document.querySelector("#statementTableWrap"),
   statementRows: document.querySelector("#statementRows"),
   statementHeadingVendor: document.querySelector("#statementHeadingVendor"),
-  statementHeadingProduct: document.querySelector("#statementHeadingProduct"),
+  statementHeadingPeriod: document.querySelector("#statementHeadingPeriod"),
+  statementAcceptedTotal: document.querySelector("#statementAcceptedTotal"),
+  statementFooterTotal: document.querySelector("#statementFooterTotal"),
+  statementFooterLabel: document.querySelector("#statementFooterLabel"),
+  statementTotalLabel: document.querySelector("#statementTotalLabel"),
   selectAllStatementRows: document.querySelector("#selectAllStatementRows"),
   paySelectedRows: document.querySelector("#paySelectedRows"),
   printPaidReport: document.querySelector("#printPaidReport"),
@@ -117,6 +123,7 @@ async function loadRoleAccess() {
         role: result.user?.role || "employee",
         ownerPinUnlocked: Boolean(result.permissions?.ownerPinUnlocked),
         enterpriseCode: result.enterprise?.code || "",
+        enterpriseName: result.enterprise?.name || "",
       };
     } catch {
       accessState = { role: "employee", ownerPinUnlocked: false };
@@ -936,15 +943,13 @@ function renderStatement() {
           <strong>${formatDate(entry.date)}</strong>
           <span>${formatCreatedTime(entry.createdAt)}</span>
         </td>
-        <td data-label="Type">${escapeHtml(actionLabel(entry.type))}</td>
         <td data-label="Product"><strong>${escapeHtml(entry.product)}</strong></td>
-        <td data-label="Quantities"><strong>${formatQty(entry.receivedQuantity ?? quantity)} / ${formatQty(entry.spoilageQuantity || 0)} / ${formatQty(entry.acceptedQuantity ?? quantity)} ${escapeHtml(entry.unit)}</strong></td>
+        <td data-label="Received">${formatQty(isDelivered ? (entry.receivedQuantity ?? quantity) : 0)} ${escapeHtml(entry.unit)}</td>
+        <td data-label="Spoilage">${formatQty(isDelivered ? (entry.spoilageQuantity || 0) : (entry.type === "SPOILED" ? quantity : 0))} ${escapeHtml(entry.unit)}</td>
+        <td data-label="Accepted"><strong>${formatQty(payableQty)} ${escapeHtml(entry.unit)}</strong></td>
         <td data-label="Unit price">${money.format(unitPrice)}</td>
         <td data-label="Amount" class="${amount < 0 ? "amount-warning" : "amount-positive"}">${money.format(amount)}</td>
         <td data-label="Status"><span class="status-pill ${paid ? "paid" : "unpaid"}">${paymentStatus}</span></td>
-        <td data-label="Action" class="statement-action-column">
-          <button class="text-action danger-text" data-delete-entry="${entry.id}" type="button">Delete</button>
-        </td>
       </tr>
       `;
     })
@@ -952,13 +957,10 @@ function renderStatement() {
 
   const totals = calculateTotals(statementEntries);
   const statementVendorNames = [...new Set(statementEntries.map((entry) => findVendor(entry.vendorId)?.name).filter(Boolean))];
-  const statementProducts = [...new Set(statementEntries.map((entry) => entry.product).filter(Boolean))];
   elements.statementHeadingVendor.textContent = statementVendorNames.length === 1
     ? statementVendorNames[0]
     : statementVendorNames.length > 1 ? `${statementVendorNames.length} vendors` : "All vendors";
-  elements.statementHeadingProduct.textContent = statementProducts.length === 1
-    ? statementProducts[0]
-    : statementProducts.length > 1 ? `${statementProducts.length} products` : "All products";
+  elements.statementHeadingPeriod.textContent = formatMonth(state.activeMonth);
   const visibleIds = new Set(statementEntries.map((entry) => String(entry.id)));
   for (const id of selectedStatementEntries) {
     if (!visibleIds.has(id)) selectedStatementEntries.delete(id);
@@ -968,9 +970,13 @@ function renderStatement() {
   elements.selectAllStatementRows.indeterminate = selectedStatementEntries.size > 0
     && !elements.selectAllStatementRows.checked;
   elements.paySelectedRows.textContent = selectedStatementEntries.size
-    ? `Pay selected (${selectedStatementEntries.size})`
-    : "Pay selected";
+    ? `Mark selected as paid (${selectedStatementEntries.size})`
+    : "Mark selected as paid";
   elements.statementTotal.textContent = money.format(totals.payableValue);
+  elements.statementFooterTotal.textContent = money.format(totals.payableValue);
+  elements.statementTotalLabel.textContent = showingPaid ? "Total paid records" : "Total amount due";
+  elements.statementFooterLabel.textContent = showingPaid ? "Paid total" : "Amount due";
+  elements.statementAcceptedTotal.textContent = formatStatementAcceptedTotal(statementEntries);
   updatePrintReportHeader(statementEntries);
   renderPaymentStatus();
 }
@@ -982,8 +988,8 @@ function handleStatementSelection(event) {
   if (checkbox.checked) selectedStatementEntries.add(entryId);
   else selectedStatementEntries.delete(entryId);
   elements.paySelectedRows.textContent = selectedStatementEntries.size
-    ? `Pay selected (${selectedStatementEntries.size})`
-    : "Pay selected";
+    ? `Mark selected as paid (${selectedStatementEntries.size})`
+    : "Mark selected as paid";
   resetClearPaidButton();
   renderPaymentStatus();
 }
@@ -997,8 +1003,8 @@ function toggleAllStatementRows() {
     else selectedStatementEntries.delete(entryId);
   });
   elements.paySelectedRows.textContent = selectedStatementEntries.size
-    ? `Pay selected (${selectedStatementEntries.size})`
-    : "Pay selected";
+    ? `Mark selected as paid (${selectedStatementEntries.size})`
+    : "Mark selected as paid";
   resetClearPaidButton();
   renderPaymentStatus();
 }
@@ -1064,6 +1070,8 @@ async function paySelectedStatementRows() {
 }
 
 function updatePrintReportHeader(entries) {
+  elements.printStoreName.textContent = `Store: ${accessState.enterpriseName || "Store"}`;
+  elements.printGeneratedDate.textContent = `Printed: ${new Date().toLocaleString()}`;
   const vendorIds = [...new Set(entries.map((entry) => entry.vendorId))];
   if (vendorIds.length !== 1) {
     elements.printVendorName.textContent = "";
@@ -1079,6 +1087,16 @@ function updatePrintReportHeader(entries) {
     : "";
 }
 
+function formatStatementAcceptedTotal(entries) {
+  const units = [...new Set(entries.map((entry) => entry.unit).filter(Boolean))];
+  if (units.length !== 1) return units.length ? "Multiple units" : "0";
+  const total = entries.reduce((sum, entry) => {
+    const quantity = Number(entry.acceptedQuantity ?? entry.quantity) || 0;
+    return sum + (entry.type === "DELIVERED" ? quantity : -Number(entry.quantity || 0));
+  }, 0);
+  return `${formatQty(total)} ${units[0]}`;
+}
+
 function matchesStatementSearch(entry, searchText) {
   if (!searchText) return true;
   return normalizeSearch(getEntryAkrabiName(entry)).includes(searchText);
@@ -1088,7 +1106,8 @@ function getStatementEntries(searchText) {
   if (!searchText) return [];
   const showingPaid = elements.statementStatus.value === "paid";
   return state.entries.filter((entry) =>
-    matchesStatementSearch(entry, searchText) && isEntryPaid(entry) === showingPaid);
+    entry.date.startsWith(state.activeMonth)
+    && matchesStatementSearch(entry, searchText) && isEntryPaid(entry) === showingPaid);
 }
 
 function findSingleStatementAkrabiId() {

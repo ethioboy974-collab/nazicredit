@@ -293,40 +293,41 @@
               <label class="compact-select">
                 Records
                 <select id="statementStatus">
-                  <option value="unpaid">Unpaid statement</option>
+                  <option value="unpaid">Amount Due</option>
                   <option value="paid">Paid records</option>
                 </select>
               </label>
             </div>
             <div class="print-report-header" id="printReportHeader">
               <h2>Vendor Statement</h2>
+              <p id="printStoreName"></p>
               <p id="printVendorName"></p>
               <p id="printReportPeriod"></p>
+              <p id="printGeneratedDate"></p>
             </div>
             <div class="empty-state" id="statementEmpty" hidden></div>
             <div class="statement-overview" id="statementOverview" hidden>
               <div class="statement-total" id="statementTotalBar" hidden>
-                <span>Total amount to pay</span>
+                <span id="statementTotalLabel">Total amount due</span>
                 <strong id="statementTotal">$0</strong>
               </div>
-              <details class="statement-section-details payment-bar" id="paymentBar" hidden>
-                <summary class="statement-section-summary">
-                  <span>Payment tools</span>
+              <div class="statement-section-details payment-bar" id="paymentBar" hidden>
+                <div class="payment-tools-heading">
+                  <strong>Payment actions</strong>
                   <small id="paymentStatus">No payment recorded</small>
-                  <span class="details-toggle" aria-hidden="true"></span>
-                </summary>
+                </div>
                 <div class="payment-actions">
-                  <button class="primary-action" id="paySelectedRows" type="button">Pay selected</button>
+                  <button class="primary-action" id="paySelectedRows" type="button">Mark selected as paid</button>
                   <button class="secondary-action" id="printPaidReport" type="button">Print paid report</button>
                   <button class="secondary-action danger-outline" id="markUnpaid" type="button">Mark unpaid</button>
                   <button class="secondary-action danger-outline" id="clearPaidRecords" type="button">Clear paid records</button>
                 </div>
-              </details>
+              </div>
             </div>
             <div class="table-wrap statement-sheet-wrap" id="statementTableWrap" hidden>
               <div class="statement-sheet-heading">
                 <span>Vendor: <strong id="statementHeadingVendor">All vendors</strong></span>
-                <span>Product: <strong id="statementHeadingProduct">All products</strong></span>
+                <span>Statement period: <strong id="statementHeadingPeriod"></strong></span>
               </div>
               <table class="statement-sheet">
                 <thead>
@@ -336,16 +337,17 @@
                     </th>
                     <th class="sheet-row-number" aria-label="Row number">#</th>
                     <th>Date</th>
-                    <th>Type</th>
                     <th>Product</th>
-                    <th>Received / Spoilage / Accepted</th>
-                    <th>Price</th>
+                    <th>Received</th>
+                    <th>Spoilage</th>
+                    <th>Accepted</th>
+                    <th>Unit price</th>
                     <th>Amount</th>
                     <th>Status</th>
-                    <th class="statement-action-column">Action</th>
                   </tr>
                 </thead>
                 <tbody id="statementRows"></tbody>
+                <tfoot><tr class="statement-footer"><td colspan="6">Total accepted</td><td id="statementAcceptedTotal">0</td><td id="statementFooterLabel">Amount due</td><td id="statementFooterTotal">$0</td><td></td></tr></tfoot>
               </table>
             </div>
           </section>

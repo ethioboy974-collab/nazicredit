@@ -13,7 +13,7 @@ test("statement paid and unpaid actions persist database transaction ids", () =>
 test("paid deliveries move from the unpaid statement into paid records", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.html"), "utf8");
   const source = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.js"), "utf8");
-  assert.match(html, /<option value="unpaid">Unpaid statement<\/option>/);
+  assert.match(html, /<option value="unpaid">Amount Due<\/option>/);
   assert.match(html, /<option value="paid">Paid records<\/option>/);
   assert.match(source, /isEntryPaid\(entry\) === showingPaid/);
 });

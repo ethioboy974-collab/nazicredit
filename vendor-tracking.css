@@ -981,6 +981,22 @@ button:disabled {
   padding: 0 14px 14px;
 }
 
+.payment-tools-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+
+.payment-tools-heading small { color: var(--muted); font-weight: 750; }
+
+.statement-footer td {
+  background: #f2f7f3;
+  border-top: 2px solid var(--green);
+  font-weight: 850;
+}
+
 .amount-positive {
   color: var(--green);
   font-weight: 800;
