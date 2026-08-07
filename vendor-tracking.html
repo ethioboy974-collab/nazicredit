@@ -46,7 +46,7 @@
         </div>
 
         <nav class="nav-tabs" aria-label="Main views">
-          <button class="nav-tab active" id="vendorDashboardTab" data-view="dashboard" type="button">
+          <button class="nav-tab" id="vendorDashboardTab" data-view="dashboard" type="button" hidden>
             <span aria-hidden="true">#</span>
             Dashboard
           </button>
@@ -54,7 +54,7 @@
             <span aria-hidden="true">V</span>
             Vendor
           </button>
-          <button class="nav-tab" data-view="receive" type="button">
+          <button class="nav-tab active" data-view="receive" type="button">
             <span aria-hidden="true">+</span>
             Receive
           </button>
@@ -88,7 +88,7 @@
           </div>
         </section>
 
-        <section class="view active" id="dashboard">
+        <section class="view" id="dashboard">
           <div class="metric-grid dashboard-metrics">
             <article class="metric primary-metric">
               <p>Payable</p>
@@ -171,7 +171,7 @@
           </details>
         </section>
 
-        <section class="view" id="receive">
+        <section class="view active" id="receive">
           <section class="panel form-panel">
             <div class="panel-heading">
               <h3>Record received product</h3>

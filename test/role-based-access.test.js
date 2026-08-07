@@ -34,8 +34,11 @@ test("employee screens hide financial summary dashboards", () => {
   assert.match(client, /creditSummary\.hidden = state\.user\.role !== "owner"/);
   assert.match(client, /printLedgerButton\.hidden = state\.user\.role !== "owner"/);
   assert.match(vendorHtml, /id="vendorDashboardTab"/);
+  assert.match(vendorHtml, /id="vendorDashboardTab"[^>]*hidden/);
+  assert.match(vendorHtml, /class="nav-tab active" data-view="receive"/);
+  assert.match(vendorHtml, /class="view active" id="receive"/);
   assert.match(vendorClient, /dashboardTab\.hidden = accessState\.role !== "owner"/);
-  assert.match(vendorClient, /\[data-view="receive"\][\s\S]*?\.click\(\)/);
+  assert.match(vendorClient, /accessState\.role === "owner"[\s\S]*?dashboardTab\.click\(\)/);
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {

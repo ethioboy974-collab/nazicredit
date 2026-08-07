@@ -142,10 +142,10 @@ async function loadRoleAccess() {
   document.querySelector("#employeeManagementLink").hidden = accessState.role !== "owner";
   elements.exportCsv.hidden = accessState.role !== "owner";
   elements.printReport.hidden = accessState.role !== "owner";
-  if (accessState.role !== "owner" && document.querySelector("#dashboard").classList.contains("active")) {
-    document.querySelector('[data-view="receive"]').click();
+  if (accessState.role === "owner") {
+    if (window.location.hash === "#statement") statementTab.click();
+    else dashboardTab.click();
   }
-  if (window.location.hash === "#statement" && accessState.role === "owner") statementTab.click();
 }
 
 async function databaseRequest(path, options = {}) {
