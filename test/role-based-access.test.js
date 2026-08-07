@@ -55,7 +55,7 @@ test("employees can only add entries in the credit section", () => {
   assert.match(html, /id="employeePasswordNotice"/);
   assert.match(client, /recordForm\.hidden = !state\.permissions\.manageRecords/);
   assert.match(client, /employeePasswordNotice\.hidden = !state\.user\.mustChangePassword/);
-  assert.match(server, /temporaryPasswordCreditEntry = request\.method === "POST"[\s\S]*"\/api\/records"/);
+  assert.match(server, /temporaryPasswordEmployeeEntry = request\.method === "POST"[\s\S]*"\/api\/records"/);
 });
 
 test("employees can collect a customer payment without full ledger access", () => {
@@ -69,7 +69,7 @@ test("employees can collect a customer payment without full ledger access", () =
   assert.match(server, /\.slice\(0, 10\)/);
   assert.match(server, /Payment cannot exceed the customer balance/);
   assert.match(server, /action:\s*"payment\.collected"/);
-  assert.match(server, /\["\/api\/records", "\/api\/employee\/credit-payment"\]/);
+  assert.match(server, /temporaryPasswordEmployeeEntry[\s\S]*?"\/api\/employee\/credit-payment"/);
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {
