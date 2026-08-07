@@ -23,6 +23,10 @@
   display: none !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: #edf2f7;
