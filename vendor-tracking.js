@@ -137,6 +137,7 @@ async function loadRoleAccess() {
   statementTab.hidden = accessState.role !== "owner";
   document.querySelector("#vendorBalancesPanel").hidden = accessState.role !== "owner";
   document.querySelector("#savedHistoryPanel").hidden = accessState.role !== "owner";
+  document.querySelector("#employeeManagementLink").hidden = accessState.role !== "owner";
   if (window.location.hash === "#statement" && accessState.role === "owner") statementTab.click();
 }
 
