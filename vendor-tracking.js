@@ -75,7 +75,7 @@ function init() {
   window.addEventListener("resize", enforceMobileView);
   applyAuthState();
   render();
-  lockLatestReceivingItem();
+  updateReceivingItemForSelectedVendor();
   enforceMobileView();
   loadDatabaseState().then(applyAiVendorDraft).catch(() => {
     showToast("Using the local vendor ledger");
@@ -200,7 +200,7 @@ async function loadDatabaseState() {
   elements.activeMonth.value = state.activeMonth;
   saveState();
   render();
-  lockLatestReceivingItem();
+  updateReceivingItemForSelectedVendor();
 }
 
 async function syncEntryToDatabase(entry) {
@@ -354,6 +354,7 @@ function bindNavigation() {
   });
   ["receivedQuantity", "spoilageQuantity"].forEach((name) =>
     elements.deliveryForm.elements[name].addEventListener("input", updateAcceptedQuantity));
+  elements.deliveryForm.elements.vendorName.addEventListener("input", updateReceivingItemForSelectedVendor);
   elements.changeReceivingItem.addEventListener("click", () => setReceivingItemLocked(false));
   elements.statementRows.addEventListener("click", handleStatementAction);
   elements.statementRows.addEventListener("change", handleStatementSelection);
@@ -426,15 +427,9 @@ function bindForms() {
 
   elements.deliveryForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const nextProduct = event.currentTarget.elements.product.value;
-    const nextUnit = event.currentTarget.elements.unit.value;
-    const nextUnitPrice = event.currentTarget.elements.unitPrice.value;
     if (!addEntryFromForm(event.currentTarget, "DELIVERED")) return;
     event.currentTarget.reset();
-    event.currentTarget.elements.product.value = nextProduct;
-    event.currentTarget.elements.unit.value = nextUnit;
-    event.currentTarget.elements.unitPrice.value = nextUnitPrice;
-    setReceivingItemLocked(true);
+    setReceivingItemLocked(false);
     setDefaultDates();
     showToast("Delivery saved.");
   });
@@ -450,12 +445,27 @@ function setReceivingItemLocked(locked) {
   elements.changeReceivingItem.hidden = !locked;
 }
 
-function lockLatestReceivingItem() {
-  const latest = [...state.entries]
-    .filter((entry) => entry.type === "DELIVERED")
-    .sort((left, right) => String(right.createdAt || right.date).localeCompare(String(left.createdAt || left.date)))[0];
-  if (!latest) { setReceivingItemLocked(false); return; }
+function updateReceivingItemForSelectedVendor() {
   const form = elements.deliveryForm;
+  const wanted = normalizeSearch(form.elements.vendorName.value);
+  const vendor = state.vendors.find((item) => normalizeSearch(item.name) === wanted);
+  if (!vendor) {
+    form.elements.product.value = "";
+    form.elements.unit.value = "piece";
+    form.elements.unitPrice.value = "";
+    setReceivingItemLocked(false);
+    return;
+  }
+  const latest = [...state.entries]
+    .filter((entry) => entry.type === "DELIVERED" && entry.vendorId === vendor.id)
+    .sort((left, right) => String(right.createdAt || right.date).localeCompare(String(left.createdAt || left.date)))[0];
+  if (!latest) {
+    form.elements.product.value = "";
+    form.elements.unit.value = "piece";
+    form.elements.unitPrice.value = "";
+    setReceivingItemLocked(false);
+    return;
+  }
   form.elements.product.value = latest.product;
   form.elements.unit.value = latest.unit;
   form.elements.unitPrice.value = latest.unitPrice;

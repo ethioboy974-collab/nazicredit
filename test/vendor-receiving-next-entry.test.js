@@ -3,16 +3,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("next receiving entry keeps the last product, unit, and price", () => {
+test("each vendor loads and locks its own latest product, unit, and price", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "vendor-tracking.js"), "utf8");
-  assert.match(source, /const nextProduct = event\.currentTarget\.elements\.product\.value/);
-  assert.match(source, /const nextUnit = event\.currentTarget\.elements\.unit\.value/);
-  assert.match(source, /const nextUnitPrice = event\.currentTarget\.elements\.unitPrice\.value/);
-  assert.match(source, /elements\.product\.value = nextProduct/);
-  assert.match(source, /elements\.unit\.value = nextUnit/);
-  assert.match(source, /elements\.unitPrice\.value = nextUnitPrice/);
+  assert.match(source, /entry\.vendorId === vendor\.id/);
+  assert.match(source, /vendorName\.addEventListener\("input", updateReceivingItemForSelectedVendor\)/);
   assert.match(source, /setReceivingItemLocked\(true\)/);
-  assert.match(source, /lockLatestReceivingItem\(\)/);
+  assert.match(source, /updateReceivingItemForSelectedVendor\(\)/);
 });
 
 test("item details lock after saving and can be intentionally changed", () => {
