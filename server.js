@@ -2703,6 +2703,7 @@ function isOwnerOnlyPage(pathname) {
     "/finance-dashboard", "/finance-dashboard.html", "/finance-dashboard.js", "/finance-dashboard.css",
     "/ai-dashboard", "/ai-dashboard.html", "/ai-dashboard.js", "/ai-dashboard.css",
     "/time-clock-admin", "/time-clock-admin.html", "/time-clock-admin.js", "/time-clock-admin.css",
+    "/employee-management", "/employee-management.html", "/employee-management.js", "/employee-management.css",
     "/owner-pin.html", "/owner-pin.js",
     "/admin", "/admin.html", "/admin.js", "/admin.css",
   ]).has(pathname);

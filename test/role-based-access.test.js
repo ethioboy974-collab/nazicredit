@@ -28,6 +28,10 @@ test("restricted pages and APIs enforce owner access on the server", () => {
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {
+  const management = fs.readFileSync(path.join(root, "employee-management.html"), "utf8");
+  assert.match(html, /id="employeeManagementLink"/);
+  assert.match(management, /Employee Management/);
+  assert.match(server, /"\/employee-management\.html"/);
   assert.match(html, /<option value="owner">Owner<\/option>/);
   assert.match(html, /id="staffStatus"/);
   assert.match(client, /Reset Password/);

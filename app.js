@@ -56,6 +56,7 @@ const elements = {
   logoutButton: document.querySelector("#logoutButton"),
   financeLink: document.querySelector("#financeLink"),
   aiDashboardLink: document.querySelector("#aiDashboardLink"),
+  employeeManagementLink: document.querySelector("#employeeManagementLink"),
   enterpriseStatus: document.querySelector("#enterpriseStatus"),
   paymentDialog: document.querySelector("#paymentDialog"),
   paymentForm: document.querySelector("#paymentForm"),
@@ -372,6 +373,7 @@ async function loadSessionInfo() {
     elements.settingsButton.hidden = state.user.role !== "owner";
     elements.financeLink.hidden = state.user.role !== "owner";
     elements.aiDashboardLink.hidden = state.user.role !== "owner";
+    elements.employeeManagementLink.hidden = state.user.role !== "owner";
     elements.teamSection.hidden = !state.permissions.manageUsers;
     elements.platformSection.hidden =
       !state.permissions.manageSignupInvites && !state.permissions.manageEnterprises;
