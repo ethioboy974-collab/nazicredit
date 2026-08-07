@@ -125,6 +125,7 @@ async function loadRoleAccess() {
       const result = await databaseRequest("/me");
       accessState = {
         role: result.user?.role || "employee",
+        username: result.user?.username || "unknown",
         ownerPinUnlocked: Boolean(result.permissions?.ownerPinUnlocked),
         enterpriseCode: result.enterprise?.code || "",
         enterpriseName: result.enterprise?.name || "",
@@ -134,6 +135,7 @@ async function loadRoleAccess() {
     }
   }
   const statementTab = document.querySelector('[data-view="statement"]');
+  elements.userLine.textContent = `Signed in as ${accessState.username || "local user"} (${accessState.role})`;
   const dashboardTab = document.querySelector("#vendorDashboardTab");
   statementTab.hidden = accessState.role !== "owner";
   dashboardTab.hidden = accessState.role !== "owner";

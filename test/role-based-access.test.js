@@ -39,6 +39,7 @@ test("employee screens hide financial summary dashboards", () => {
   assert.match(vendorHtml, /class="view active" id="receive"/);
   assert.match(vendorClient, /dashboardTab\.hidden = accessState\.role !== "owner"/);
   assert.match(vendorClient, /accessState\.role === "owner"[\s\S]*?dashboardTab\.click\(\)/);
+  assert.match(vendorClient, /Signed in as \$\{accessState\.username/);
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {
