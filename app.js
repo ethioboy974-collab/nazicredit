@@ -50,6 +50,7 @@ const elements = {
   metricOpen: document.querySelector("#metricOpen"),
   creditSummary: document.querySelector("#creditSummary"),
   creditRecordsPanel: document.querySelector("#creditRecordsPanel"),
+  employeePasswordNotice: document.querySelector("#employeePasswordNotice"),
   storageStatus: document.querySelector("#storageStatus"),
   syncButton: document.querySelector("#syncButton"),
   printLedgerButton: document.querySelector("#printLedgerButton"),
@@ -370,8 +371,8 @@ async function loadSessionInfo() {
       viewActivity: Boolean(result.permissions?.viewActivity),
       emailRecoveryEnabled: Boolean(result.permissions?.emailRecoveryEnabled),
     };
-    elements.recordForm.hidden =
-      !state.permissions.manageRecords || Boolean(state.user.mustChangePassword);
+    elements.recordForm.hidden = !state.permissions.manageRecords;
+    elements.employeePasswordNotice.hidden = !state.user.mustChangePassword;
     elements.settingsButton.hidden = state.user.role !== "owner";
     elements.financeLink.hidden = state.user.role !== "owner";
     elements.aiDashboardLink.hidden = state.user.role !== "owner";
@@ -1030,6 +1031,7 @@ async function changePassword(event) {
     });
     state.user.mustChangePassword = false;
     elements.recordForm.hidden = !state.permissions.manageRecords;
+    elements.employeePasswordNotice.hidden = true;
     elements.passwordForm.reset();
     toast("Password updated");
   } catch (error) {

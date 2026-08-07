@@ -52,6 +52,9 @@ test("employees can only add entries in the credit section", () => {
   assert.match(server, /records: session\.role === "owner" \? await listRecords[\s\S]*?: \[\]/);
   assert.match(server, /request\.method === "PUT"[^]*?\/api\/records[^]*?requireEnterpriseOwner\(session\)/);
   assert.match(server, /request\.method === "POST" && paymentMatch[^]*?requireEnterpriseOwner\(session\)/);
+  assert.match(html, /id="employeePasswordNotice"/);
+  assert.match(client, /recordForm\.hidden = !state\.permissions\.manageRecords/);
+  assert.match(client, /employeePasswordNotice\.hidden = !state\.user\.mustChangePassword/);
 });
 
 test("owner employee management supports roles, passwords, and activation status", () => {
