@@ -3,13 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Vendor" />
     <title>Vendor Portal</title>
+    <link rel="manifest" href="/vendor-app.webmanifest" />
+    <link rel="apple-touch-icon" href="/vendor-icon-180.png" />
     <link rel="stylesheet" href="vendor-portal.css?v=20260806" />
   </head>
   <body>
     <header>
       <div><p class="eyebrow">Vendor Portal</p><h1 id="vendorName">Vendor</h1><p id="storeName"></p></div>
-      <a class="logout" href="/vendor-logout">Log out</a>
+      <div class="header-actions"><button class="install-button" id="installApp" type="button" hidden>Install app</button><a class="logout" href="/vendor-logout">Log out</a></div>
     </header>
     <main>
       <section class="metrics" aria-label="Vendor totals">
@@ -42,6 +48,6 @@
       </section>
       <p class="error" id="portalError" hidden></p>
     </main>
-    <script src="vendor-portal.js?v=20260806-password"></script>
+    <script src="vendor-portal.js?v=20260806-pwa"></script>
   </body>
 </html>

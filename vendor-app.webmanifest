@@ -1,0 +1,15 @@
+{
+  "id": "/vendor-portal",
+  "name": "Vendor Portal",
+  "short_name": "Vendor",
+  "description": "View store deliveries, accepted totals, spoilage, balances, payments, and statements.",
+  "start_url": "/vendor-portal",
+  "scope": "/vendor-",
+  "display": "standalone",
+  "background_color": "#f4f7f9",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/vendor-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/vendor-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

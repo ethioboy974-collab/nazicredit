@@ -93,6 +93,7 @@ const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -444,6 +445,8 @@ async function handleRequest(request, response) {
 
     if (requestUrl.pathname === "/vendor-portal" || requestUrl.pathname === "/vendor-portal.html"
         || requestUrl.pathname === "/vendor-portal.css" || requestUrl.pathname === "/vendor-portal.js"
+        || requestUrl.pathname === "/vendor-app.webmanifest" || requestUrl.pathname === "/vendor-sw.js"
+        || requestUrl.pathname === "/vendor-offline.html" || requestUrl.pathname.startsWith("/vendor-icon-")
         || requestUrl.pathname.startsWith("/api/vendor-portal/")) {
       const signedVendorSession = getVendorSession(request);
       const vendorSession = signedVendorSession ? await refreshVendorSessionAccess(signedVendorSession) : null;

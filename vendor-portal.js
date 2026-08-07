@@ -1,8 +1,33 @@
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const quantity = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
+let installPrompt;
 
 loadPortal();
 document.querySelector("#passwordForm").addEventListener("submit", changePassword);
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault(); installPrompt = event;
+  document.querySelector("#installApp").hidden = false;
+});
+document.querySelector("#installApp").addEventListener("click", installVendorApp);
+window.addEventListener("appinstalled", () => { document.querySelector("#installApp").hidden = true; installPrompt = null; });
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/vendor-sw.js", { scope: "/vendor-" });
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+if (isIos && !isStandalone) {
+  document.querySelector("#installApp").textContent = "Install app";
+  document.querySelector("#installApp").hidden = false;
+}
+
+async function installVendorApp() {
+  if (!installPrompt) {
+    if (isIos) window.alert("In Safari, tap Share, then tap Add to Home Screen.");
+    return;
+  }
+  await installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  document.querySelector("#installApp").hidden = true;
+}
 
 async function changePassword(event) {
   event.preventDefault();
