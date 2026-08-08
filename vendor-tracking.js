@@ -1,5 +1,3 @@
-const STORAGE_KEY = "vendor-ledger-v1";
-const SESSION_KEY = "vendor-ledger-session";
 const USERS = {
   admin: { password: "admin123", role: "Admin" },
   staff: { password: "staff123", role: "Staff" }
@@ -96,9 +94,8 @@ function init() {
 
 function applyAiVendorDraft() {
   try {
-    const payload = JSON.parse(sessionStorage.getItem("nazicredit-ai-draft") || "null");
+    const payload = JSON.parse(new URLSearchParams(location.search).get("aiDraft") || "null");
     if (payload?.context !== "vendor") return;
-    sessionStorage.removeItem("nazicredit-ai-draft");
     const d = payload.draft || {};
     document.querySelector('[data-view="receive"]')?.click();
     const form = elements.deliveryForm;
@@ -185,9 +182,15 @@ async function loadDatabaseState() {
   }
   const receivingDefaults = Array.isArray(defaultsResult.defaults) ? defaultsResult.defaults : [];
   for (const item of receivingDefaults) {
-    const vendor = (item.vendorAccountId && vendorByAccountId.get(item.vendorAccountId))
-      || vendorMap.get(cleanName(item.vendorName || "").toLowerCase());
-    if (vendor) vendor.receivingDefault = { product: item.product, unit: item.unit, unitPrice: Number(item.unitPrice || 0) };
+    const name = cleanName(item.vendorName || "");
+    const key = name.toLowerCase();
+    if (!name) continue;
+    let vendor = (item.vendorAccountId && vendorByAccountId.get(item.vendorAccountId)) || vendorMap.get(key);
+    if (!vendor) {
+      vendor = { id: `vendor-${key}`, accountId: "", name, phone: "", email: "", paymentMethod: "Cash" };
+      vendorMap.set(key, vendor);
+    }
+    vendor.receivingDefault = { product: item.product, unit: item.unit, unitPrice: Number(item.unitPrice || 0) };
   }
   const entries = [];
   for (const delivery of deliveries) {
@@ -292,9 +295,6 @@ function enforceMobileView() {
 }
 
 function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) return JSON.parse(saved);
-
   const today = new Date();
   const activeMonth = localDateString(today).slice(0, 7);
   return {
@@ -306,12 +306,11 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // UI state is transient; business data is persisted only through the API.
 }
 
 function loadSession() {
-  const saved = localStorage.getItem(SESSION_KEY);
-  return saved ? JSON.parse(saved) : null;
+  return null;
 }
 
 function bindAuth() {
@@ -327,7 +326,6 @@ function bindAuth() {
     }
 
     currentUser = { username, role: user.role };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
     applyAuthState();
     showToast(`Signed in as ${user.role}.`);
   });
@@ -467,9 +465,9 @@ function bindForms() {
     } catch (error) { showToast(error.message); }
   });
 
-  elements.deliveryForm.addEventListener("submit", (event) => {
+  elements.deliveryForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!addEntryFromForm(event.currentTarget, "DELIVERED")) return;
+    if (!(await addEntryFromForm(event.currentTarget, "DELIVERED"))) return;
     event.currentTarget.reset();
     setReceivingItemLocked(false);
     setDefaultDates();
@@ -515,7 +513,7 @@ function updateReceivingItemForSelectedVendor() {
   setReceivingItemLocked(true);
 }
 
-function addEntryFromForm(form, type) {
+async function addEntryFromForm(form, type) {
   let vendorId;
   let quantities;
   try {
@@ -544,20 +542,15 @@ function addEntryFromForm(form, type) {
     createdAt: new Date().toISOString()
   };
 
-  state.entries.push(entry);
-  const receivingVendor = findVendor(entry.vendorId);
-  if (receivingVendor) receivingVendor.receivingDefault = {
-    product: entry.product, unit: entry.unit, unitPrice: entry.unitPrice,
-  };
-  state.activeMonth = entry.date.slice(0, 7);
-  elements.activeMonth.value = state.activeMonth;
-  setStatementDateRangeForMonth();
-  saveState();
-  render();
-  syncEntryToDatabase(entry)
-    .then(showVendorEmailStatus)
-    .catch((error) => showToast(`${actionLabel(type)} saved locally. ${error.message}`));
-  return true;
+  try {
+    const result = await syncEntryToDatabase(entry);
+    await loadDatabaseState();
+    showVendorEmailStatus(result);
+    return true;
+  } catch (error) {
+    showToast(error.message);
+    return false;
+  }
 }
 
 function render() {
@@ -716,7 +709,7 @@ function handleHistoryAction(event) {
   deleteEntry(button.dataset.deleteEntry);
 }
 
-function deleteEntry(entryId) {
+async function deleteEntry(entryId) {
   if (!isAdmin()) {
     showToast("Only an admin can delete records.");
     return;
@@ -728,14 +721,12 @@ function deleteEntry(entryId) {
   const ok = window.confirm(`Delete ${actionLabel(entry.type)} record for ${entry.product} on ${formatDate(entry.date)}?`);
   if (!ok) return;
 
-  state.entries = state.entries.filter((item) => item.id !== entryId);
-  saveState();
-  render();
-  if (entry.databaseId) {
-    databaseRequest(`/vendors/${encodeURIComponent(entry.databaseId)}`, { method: "DELETE" })
-      .catch((error) => showToast(error.message));
-  }
-  showToast("Record deleted.");
+  if (!entry.databaseId) return showToast("Central database record not found.");
+  try {
+    await databaseRequest(`/vendors/${encodeURIComponent(entry.databaseId)}`, { method: "DELETE" });
+    await loadDatabaseState();
+    showToast("Record deleted.");
+  } catch (error) { showToast(error.message); }
 }
 
 function openEditDialog(entryId) {
@@ -760,7 +751,7 @@ function openEditDialog(entryId) {
   elements.editDialog.showModal();
 }
 
-function saveEditedEntry() {
+async function saveEditedEntry() {
   const form = elements.editForm;
   if (!form.reportValidity()) return;
 
@@ -788,13 +779,16 @@ function saveEditedEntry() {
   state.activeMonth = entry.date.slice(0, 7);
   elements.activeMonth.value = state.activeMonth;
   setStatementDateRangeForMonth();
-  saveState();
-  elements.editDialog.close();
-  render();
-  syncEntryToDatabase(entry)
-    .then(showVendorEmailStatus)
-    .catch((error) => showToast(`Record updated locally. ${error.message}`));
-  showToast("Record updated.");
+  try {
+    const result = await syncEntryToDatabase(entry);
+    elements.editDialog.close();
+    await loadDatabaseState();
+    showVendorEmailStatus(result);
+    showToast("Record updated.");
+  } catch (error) {
+    await loadDatabaseState();
+    showToast(error.message);
+  }
 }
 
 function renderVendors() {
@@ -881,7 +875,7 @@ async function resetVendorPassword(vendorId) {
   } catch (error) { showToast(error.message); }
 }
 
-function deleteVendor(vendorId) {
+async function deleteVendor(vendorId) {
   if (!isAdmin()) {
     showToast("Only an admin can delete vendors.");
     return;
@@ -899,27 +893,29 @@ function deleteVendor(vendorId) {
   const ok = window.confirm(`Delete vendor ${vendor.name}?`);
   if (!ok) return;
 
-  state.vendors = state.vendors.filter((item) => item.id !== vendorId);
-  state.payments = state.payments.filter((payment) => payment.vendorId !== vendorId);
-  saveState();
-  render();
-  showToast("Vendor deleted.");
+  try {
+    await databaseRequest(`/vendor-accounts/${encodeURIComponent(vendorId)}`, { method: "DELETE" });
+    await loadDatabaseState();
+    showToast("Vendor deleted.");
+  } catch (error) { showToast(error.message); }
 }
 
-function saveEditedVendor() {
+async function saveEditedVendor() {
   const form = elements.vendorEditForm;
   if (!form.reportValidity()) return;
 
   const vendor = state.vendors.find((item) => item.id === form.elements.id.value);
   if (!vendor) return;
 
-  vendor.name = cleanName(form.elements.name.value);
-  vendor.phone = form.elements.phone.value.trim();
-  vendor.paymentMethod = form.elements.paymentMethod.value;
-  saveState();
-  elements.vendorDialog.close();
-  render();
-  showToast("Vendor updated.");
+  try {
+    await databaseRequest(`/vendor-accounts/${encodeURIComponent(vendor.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ vendorName: cleanName(form.elements.name.value), phone: form.elements.phone.value.trim() }),
+    });
+    elements.vendorDialog.close();
+    await loadDatabaseState();
+    showToast("Vendor updated.");
+  } catch (error) { showToast(error.message); }
 }
 
 function renderStatement() {

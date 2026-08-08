@@ -1361,7 +1361,6 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/in") {
-    if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking in");
     await requireRegisteredTimeClockDevice(request, session);
     const shift = await clockEmployeeIn(session);
     sendJson(response, 201, { ok: true, shift });
@@ -1369,7 +1368,6 @@ async function handleApiRequest(request, response, requestUrl, session) {
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/time-clock/out") {
-    if (session.mustChangePassword) throw httpError(403, "Change your temporary password before clocking out");
     await requireRegisteredTimeClockDevice(request, session);
     const shift = await clockEmployeeOut(session);
     sendJson(response, 200, { ok: true, shift });
@@ -1433,6 +1431,8 @@ async function handleApiRequest(request, response, requestUrl, session) {
     && [
       "/api/records",
       "/api/employee/credit-payment",
+      "/api/time-clock/in",
+      "/api/time-clock/out",
       "/api/vendor-accounts",
       "/api/vendors",
     ].includes(requestUrl.pathname);
@@ -1650,6 +1650,23 @@ async function handleApiRequest(request, response, requestUrl, session) {
     const body = await readJsonBody(request);
     const result = await createVendorAccount(session, body);
     sendJson(response, result.created ? 201 : 200, { ok: true, ...result });
+    return;
+  }
+  const vendorAccountMatch = requestUrl.pathname.match(/^\/api\/vendor-accounts\/([^/]+)$/);
+  if (request.method === "PATCH" && vendorAccountMatch) {
+    requireEnterpriseOwner(session);
+    const vendor = await updateVendorAccount(
+      session,
+      decodeURIComponent(vendorAccountMatch[1]),
+      await readJsonBody(request),
+    );
+    sendJson(response, 200, { ok: true, vendor });
+    return;
+  }
+  if (request.method === "DELETE" && vendorAccountMatch) {
+    requireEnterpriseOwner(session);
+    await deleteVendorAccount(session, decodeURIComponent(vendorAccountMatch[1]));
+    sendJson(response, 200, { ok: true });
     return;
   }
   const vendorPasswordResetMatch = requestUrl.pathname.match(/^\/api\/vendor-accounts\/([^/]+)\/reset-password$/);
@@ -3673,6 +3690,52 @@ async function createVendorAccount(session, body) {
     entityId: id, summary: `Created portal login for ${vendorName}` });
   return { created: true, temporaryPassword,
     vendor: (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === id) };
+}
+
+async function updateVendorAccount(session, vendorAccountId, body) {
+  const vendorName = requiredString(body.vendorName || body.name, "Vendor name").slice(0, 160);
+  const phone = String(body.phone || "").trim().slice(0, 60);
+  const phoneNormalized = normalizeVendorPhone(phone);
+  if (!phoneNormalized) throw httpError(400, "A phone number is required for vendor login");
+  try {
+    const [result] = await pool.query(`UPDATE customer_credit_vendor_accounts
+      SET vendor_name = ?, phone = ?, phone_normalized = ?
+      WHERE id = ? AND enterprise_id = ?`,
+    [vendorName, phone, phoneNormalized, vendorAccountId, session.enterpriseId]);
+    if (!result.affectedRows) throw httpError(404, "Vendor account not found");
+    await pool.query(`UPDATE customer_credit_vendor_tracking SET vendor_name = ?, phone = ?
+      WHERE enterprise_id = ? AND vendor_account_id = ?`,
+    [vendorName, phone, session.enterpriseId, vendorAccountId]);
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") throw httpError(409, "That phone number is already in use");
+    throw error;
+  }
+  await recordAudit(pool, session, { action: "vendor.account_updated", entityType: "vendor_account",
+    entityId: vendorAccountId, summary: `Updated vendor ${vendorName}` });
+  return (await listVendorAccounts(session.enterpriseId)).find((item) => item.id === vendorAccountId);
+}
+
+async function deleteVendorAccount(session, vendorAccountId) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query(`SELECT vendor_name AS vendorName
+      FROM customer_credit_vendor_accounts WHERE id = ? AND enterprise_id = ? LIMIT 1 FOR UPDATE`,
+    [vendorAccountId, session.enterpriseId]);
+    if (!rows.length) throw httpError(404, "Vendor account not found");
+    await connection.query(`UPDATE customer_credit_vendor_tracking SET vendor_account_id = NULL
+      WHERE enterprise_id = ? AND vendor_account_id = ?`, [session.enterpriseId, vendorAccountId]);
+    await connection.query(`DELETE FROM customer_credit_vendor_accounts
+      WHERE id = ? AND enterprise_id = ?`, [vendorAccountId, session.enterpriseId]);
+    await recordAudit(connection, session, { action: "vendor.account_deleted", entityType: "vendor_account",
+      entityId: vendorAccountId, summary: `Deleted vendor ${rows[0].vendorName}` });
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function resetVendorPortalPassword(session, vendorAccountId) {

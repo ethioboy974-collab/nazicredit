@@ -230,41 +230,11 @@ function getBalance(record) {
 }
 
 function loadSettings() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(getScopedStorageKey(SETTINGS_KEY)) || "{}");
-    state.settings = {
-      useMysql: true,
-      apiUrl: "",
-      useSheets: false,
-      sheetsUrl: "",
-      ...saved,
-    };
-  } catch {
-    state.settings = { useMysql: true, apiUrl: "", useSheets: false, sheetsUrl: "" };
-  }
+  state.settings = { useMysql: true, apiUrl: "", useSheets: false, sheetsUrl: "" };
 }
 
 function saveSettings() {
-  localStorage.setItem(getScopedStorageKey(SETTINGS_KEY), JSON.stringify(state.settings));
-}
-
-function loadLocalRecords() {
-  try {
-    return JSON.parse(localStorage.getItem(getScopedStorageKey(LOCAL_RECORDS_KEY)) || "[]").map(
-      normalizeRecord,
-    );
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalRecords(records) {
-  localStorage.setItem(getScopedStorageKey(LOCAL_RECORDS_KEY), JSON.stringify(records));
-}
-
-function getScopedStorageKey(baseKey) {
-  const scope = state.enterprise?.id || "local-device";
-  return `${baseKey}:${scope}`;
+  state.settings = { ...state.settings, useMysql: true, apiUrl: "", useSheets: false, sheetsUrl: "" };
 }
 
 async function sheetsRequest(action, payload = {}) {
@@ -330,36 +300,15 @@ async function mysqlRequest(path, options = {}) {
 }
 
 async function loadRecords() {
-  if (state.settings.useMysql) {
-    try {
-      const result = await mysqlRequest("/records");
-      state.records = result.records.map(normalizeRecord);
-      saveLocalRecords(state.records);
-      updateStorageStatus("Stored in MySQL");
-      render();
-      return;
-    } catch (error) {
-      updateStorageStatus("Using local copy; MySQL not connected");
-      toast(error.message);
-    }
+  try {
+    const result = await mysqlRequest("/records");
+    state.records = result.records.map(normalizeRecord);
+    updateStorageStatus("Synced with central database");
+  } catch (error) {
+    state.records = [];
+    updateStorageStatus("Central database unavailable");
+    toast(error.message);
   }
-
-  if (state.settings.useSheets && state.settings.sheetsUrl) {
-    try {
-      const result = await sheetsRequest("listRecords");
-      state.records = result.records.map(normalizeRecord);
-      saveLocalRecords(state.records);
-      updateStorageStatus("Stored in Google Sheets");
-      render();
-      return;
-    } catch (error) {
-      updateStorageStatus("Using local copy");
-      toast(error.message);
-    }
-  }
-
-  state.records = loadLocalRecords();
-  updateStorageStatus("Stored on this device");
   render();
 }
 
@@ -420,40 +369,21 @@ async function persistRecords(message, audit) {
     toast("This account has view-only access");
     return;
   }
-  saveLocalRecords(state.records);
-  render();
-
-  if (state.settings.useMysql) {
-    try {
-      await mysqlRequest("/records", {
-        method: "PUT",
-        body: JSON.stringify({ records: state.records, audit }),
-      });
-      updateStorageStatus("Stored in MySQL");
-      toast(message);
-      return;
-    } catch (error) {
-      await loadRecords();
-      updateStorageStatus("Stored in MySQL");
-      toast(error.message);
-      return;
-    }
+  try {
+    await mysqlRequest("/records", {
+      method: "PUT",
+      body: JSON.stringify({ records: state.records, audit }),
+    });
+    await loadRecords();
+    updateStorageStatus("Synced with central database");
+    toast(message);
+    return;
+  } catch (error) {
+    await loadRecords();
+    toast(error.message);
+    return;
   }
 
-  if (state.settings.useSheets && state.settings.sheetsUrl) {
-    try {
-      await sheetsRequest("saveRecords", { records: state.records });
-      updateStorageStatus("Stored in Google Sheets");
-      toast(message);
-      return;
-    } catch (error) {
-      updateStorageStatus("Saved locally; Sheets sync failed");
-      toast(error.message);
-      return;
-    }
-  }
-
-  toast(message);
 }
 
 function updateStorageStatus(text) {

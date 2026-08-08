@@ -373,20 +373,11 @@ async function saveVisibleProductEdits() {
 }
 
 function storageRead(key, fallback = []) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || "null");
-    return Array.isArray(value) ? value : fallback;
-  } catch {
-    return fallback;
-  }
+  return fallback;
 }
 
 function storageWrite(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    toast("Browser storage is full");
-  }
+  // Label preview state is intentionally memory-only; products persist through the API.
 }
 
 async function productApiRequest(path = "", options = {}) {
@@ -427,16 +418,7 @@ function shouldUseOfflineFallback(error) {
 }
 
 function enableOfflineProductFallback(error) {
-  if (!shouldUseOfflineFallback(error)) return false;
-  state.productStorage = "offline";
-
-  if (!state.offlineNoticeShown) {
-    toast("Using browser fallback. Log in to save products permanently.");
-    state.offlineNoticeShown = true;
-  }
-
-  renderProducts();
-  return true;
+  return false;
 }
 
 async function saveProductToApi(product) {
@@ -1208,7 +1190,7 @@ function renderProducts() {
       ? "database permanent"
       : state.productStorage === "loading"
         ? "checking database"
-        : "offline browser fallback";
+        : "central database unavailable";
   const matchText = searchTerm ? `${visibleProducts.length} of ` : "";
   elements.productCount.textContent = `${matchText}${state.products.length} product${state.products.length === 1 ? "" : "s"} saved - ${storageText}`;
 
@@ -1733,9 +1715,8 @@ async function init() {
 
 function applyAiBarcodeDraft() {
   try {
-    const payload = JSON.parse(sessionStorage.getItem("nazicredit-ai-draft") || "null");
+    const payload = JSON.parse(new URLSearchParams(location.search).get("aiDraft") || "null");
     if (payload?.context !== "barcode") return;
-    sessionStorage.removeItem("nazicredit-ai-draft");
     const d = payload.draft || {};
     const existing = state.products.find((p) =>
       (d.productId && p.id === d.productId) ||
@@ -1766,7 +1747,8 @@ async function applyOwnerOnlyNavigation() {
 
 init().catch((error) => {
   console.error(error);
-  state.productStorage = "offline";
+  state.productStorage = "unavailable";
+  state.products = [];
   renderProducts();
-  toast("Using browser fallback. Log in to save products permanently.");
+  toast("Central database unavailable. Products were not loaded or saved.");
 });

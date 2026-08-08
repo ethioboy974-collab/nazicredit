@@ -5,8 +5,8 @@ const pageMessage = document.querySelector("#pageMessage");
 const nameSearch = document.querySelector("#nameSearch");
 const phoneSearch = document.querySelector("#phoneSearch");
 const dateSearch = document.querySelector("#dateSearch");
-const demoMode = new URLSearchParams(location.search).get("demo") === "1" || location.protocol === "file:";
-let orders = loadDemoOrders();
+const demoMode = false;
+let orders = [];
 
 init();
 
@@ -19,15 +19,6 @@ function init() {
 }
 
 async function apiRequest(path, options = {}) {
-  if (demoMode) {
-    if (options.method === "PATCH") {
-      const id = decodeURIComponent(path.split("/")[2]);
-      orders = orders.map((order) => order.id === id ? { ...order, status: "pending", isActive: true, completedAt: null, completedBy: "" } : order);
-      localStorage.setItem("nazicredit-demo-orders", JSON.stringify(orders));
-      return { ok: true };
-    }
-    return { ok: true, orders };
-  }
   const response = await fetch(`/api${path}`, { credentials: "same-origin", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
   if (response.status === 401) { location.href = "/login"; throw new Error("Login required"); }
   const result = await response.json().catch(() => ({}));
@@ -81,11 +72,7 @@ async function restoreOrder(event) {
 }
 
 function loadDemoOrders() {
-  if (!demoMode) return [];
-  try { const saved = JSON.parse(localStorage.getItem("nazicredit-demo-orders") || "null"); if (Array.isArray(saved)) return saved; } catch {}
-  const now = Date.now();
-  const initial = [{ id: "demo-completed-1", customerName: "John Smith", customerPhone: "(555) 010-1920", meatType: "Chicken", quantity: "3 whole", preparationInstructions: "Cut into eight pieces.", pickupAt: new Date(now - 10800000).toISOString(), employeeName: "Sam", createdAt: new Date(now - 86400000).toISOString(), status: "picked_up", completedAt: new Date(now - 7200000).toISOString(), completedBy: "Omar", isActive: false }];
-  localStorage.setItem("nazicredit-demo-orders", JSON.stringify(initial)); return initial;
+  return [];
 }
 
 function formatDateTime(value) { if (!value) return "—"; return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)); }

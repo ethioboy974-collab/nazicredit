@@ -3,8 +3,8 @@ const activeEmpty = document.querySelector("#activeEmpty");
 const activeCount = document.querySelector("#activeCount");
 const pageMessage = document.querySelector("#pageMessage");
 const clearDemoButton = document.querySelector("#clearDemoButton");
-const demoMode = new URLSearchParams(location.search).get("demo") === "1" || location.protocol === "file:";
-let demoOrders = demoMode ? loadDemoOrders() : [];
+const demoMode = false;
+let demoOrders = [];
 let currentOrders = [];
 let currentUser = { role: "employee", username: "" };
 let currentPermissions = { resendOrderNotifications: false };
@@ -13,7 +13,7 @@ init();
 
 function init() {
   loadCurrentUser();
-  if (demoMode) { clearDemoButton.hidden = false; clearDemoButton.addEventListener("click", clearDemoOrders); }
+  clearDemoButton.hidden = true;
   document.querySelector("#refreshButton").addEventListener("click", loadOrders);
   activeOrders.addEventListener("click", handleOrderAction);
   loadOrders();
@@ -30,7 +30,6 @@ async function loadCurrentUser() {
 }
 
 async function apiRequest(path, options = {}) {
-  if (demoMode) return demoApiRequest(path, options);
   const response = await fetch(`/api${path}`, { credentials: "same-origin", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
   if (response.status === 401) { location.href = "/login"; throw new Error("Login required"); }
   const result = await response.json().catch(() => ({}));
@@ -146,7 +145,7 @@ function compareOrderPriority(a, b) { const ap = getPickupPriority(a.pickupAt); 
 function formatTimeUntil(minutes) { if (minutes < 60) return `Pickup in ${Math.ceil(minutes)} min`; const total = Math.ceil(minutes); const hours = Math.floor(total / 60); const mins = total % 60; if (hours < 24) return `Pickup in ${hours} hr${hours === 1 ? "" : "s"}${mins ? ` ${mins} min` : ""}`; const days = Math.floor(hours / 24); return `Pickup in ${days} day${days === 1 ? "" : "s"}`; }
 function formatDateTime(value) { if (!value) return "—"; return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)); }
 function clearDemoOrders() { demoOrders = []; saveDemoOrders(); renderOrders(demoOrders); showMessage("All demo orders cleared."); }
-function loadDemoOrders() { try { const saved = JSON.parse(localStorage.getItem("nazicredit-demo-orders") || "null"); return Array.isArray(saved) ? saved : []; } catch { return []; } }
-function saveDemoOrders() { localStorage.setItem("nazicredit-demo-orders", JSON.stringify(demoOrders)); }
+function loadDemoOrders() { return []; }
+function saveDemoOrders() {}
 function showMessage(message, isError = false) { pageMessage.textContent = message; pageMessage.classList.toggle("error", isError); }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }

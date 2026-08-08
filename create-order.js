@@ -4,7 +4,7 @@ const saveButton = document.querySelector("#saveButton");
 const formMessage = document.querySelector("#formMessage");
 const params = new URLSearchParams(location.search);
 const editId = params.get("edit");
-const demoMode = params.get("demo") === "1" || location.protocol === "file:" || ["127.0.0.1", "localhost"].includes(location.hostname);
+const demoMode = false;
 
 setPickupDefaults();
 addProductRow();
@@ -80,9 +80,9 @@ async function loadOrderForEdit() {
 function applyAiDraft() {
   if (editId) return;
   try {
-    const payload = JSON.parse(sessionStorage.getItem("nazicredit-ai-draft") || "null");
+    const payload = JSON.parse(params.get("aiDraft") || "null");
     if (payload?.context !== "order") return;
-    sessionStorage.removeItem("nazicredit-ai-draft"); const d = payload.draft || {};
+    const d = payload.draft || {};
     form.elements.customerName.value = d.customerName || ""; form.elements.customerPhone.value = d.customerPhone || "";
     productRows.querySelector('[data-field="productName"]').value = d.product || "";
     productRows.querySelector('[data-field="specialInstructions"]').value = d.notes || "";
@@ -101,16 +101,12 @@ async function saveOrder(event) {
   const input = { customerName: values.get("customerName"), customerPhone: values.get("customerPhone"), items: collectItems(), preparationInstructions: values.get("preparationInstructions"), pickupAt: pickupAt.toISOString(), employeeName: values.get("employeeName") };
   saveButton.disabled = true; showMessage("Saving…");
   try {
-    if (demoMode) {
-      const orders = loadDemoOrders(); const existing = orders.find((order) => order.id === editId);
-      if (existing) Object.assign(existing, input); else orders.push({ ...input, id: `demo-${Date.now()}`, createdAt: new Date().toISOString(), status: "pending", isActive: true });
-      localStorage.setItem("nazicredit-demo-orders", JSON.stringify(orders));
-    } else await api(editId ? `/api/meat-orders/${encodeURIComponent(editId)}` : "/api/meat-orders", { method: editId ? "PUT" : "POST", body: JSON.stringify(input) });
-    location.href = demoMode ? "meat-orders.html?demo=1" : "meat-orders.html";
+    await api(editId ? `/api/meat-orders/${encodeURIComponent(editId)}` : "/api/meat-orders", { method: editId ? "PUT" : "POST", body: JSON.stringify(input) });
+    location.href = "meat-orders.html";
   } catch (error) { showMessage(error.message, true); saveButton.disabled = false; }
 }
 
 async function api(path, options = {}) { const response = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options }); if (response.status === 401) { location.href = "/login"; throw new Error("Login required"); } const result = await response.json().catch(() => ({})); if (!response.ok || result.ok === false) throw new Error(result.error || "Could not save the order"); return result; }
-function loadDemoOrders() { try { const saved = JSON.parse(localStorage.getItem("nazicredit-demo-orders") || "[]"); return Array.isArray(saved) ? saved : []; } catch { return []; } }
+function loadDemoOrders() { return []; }
 function localDate(date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; }
 function showMessage(message, isError = false) { formMessage.textContent = message; formMessage.classList.toggle("error", isError); }
