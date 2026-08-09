@@ -136,7 +136,7 @@
         </label>
         <label>
           Temporary password
-          <input id="resetPassword" type="password" autocomplete="new-password" minlength="8" required />
+          <input id="resetPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
         </label>
         <p class="helper">The user must change this password after signing in.</p>
         <div class="dialog-actions">

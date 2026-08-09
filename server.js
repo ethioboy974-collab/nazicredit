@@ -770,11 +770,8 @@ function validateSignup(params, values) {
   if (config.email.apiKey && !isValidEmail(values.email)) {
     return "Enter a valid recovery email address.";
   }
-  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "Password must be at least 8 characters and include a letter and a number.";
-  }
-  if (password.length > 128) {
-    return "Password cannot be longer than 128 characters.";
+  if (!/^\d{6}$/.test(password)) {
+    return "Password must be exactly 6 digits.";
   }
   if (password !== String(params.confirmPassword || "")) {
     return "Passwords do not match.";
@@ -2800,11 +2797,8 @@ function safeEqualText(left, right) {
 
 function validateAccountPassword(password) {
   const value = String(password || "");
-  if (value.length < 8 || !/[A-Za-z]/.test(value) || !/\d/.test(value)) {
-    throw httpError(400, "Password must be at least 8 characters and include a letter and a number");
-  }
-  if (value.length > 128) {
-    throw httpError(400, "Password cannot be longer than 128 characters");
+  if (!/^\d{6}$/.test(value)) {
+    throw httpError(400, "Password must be exactly 6 digits");
   }
   return value;
 }
@@ -3822,7 +3816,7 @@ async function changeVendorPassword(session, currentPassword, newPassword) {
 }
 
 function createTemporaryVendorPassword() {
-  return `V${crypto.randomBytes(8).toString("base64url")}7`;
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 async function listVendorSpoilageHistory(enterpriseId) {
@@ -5726,11 +5720,13 @@ function sendSignupPage(response, error = "", values = {}) {
           name="password"
           type="password"
           autocomplete="new-password"
-          minlength="8"
-          maxlength="128"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          minlength="6"
+          maxlength="6"
           required
         />
-        <small>At least 8 characters with a letter and a number.</small>
+        <small>Exactly 6 digits.</small>
       </label>
       <label>
         Confirm password
@@ -5738,8 +5734,10 @@ function sendSignupPage(response, error = "", values = {}) {
           name="confirmPassword"
           type="password"
           autocomplete="new-password"
-          minlength="8"
-          maxlength="128"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          minlength="6"
+          maxlength="6"
           required
         />
       </label>
@@ -5850,11 +5848,11 @@ function sendResetPasswordPage(response, token, error = "", success = "") {
             <input name="token" type="hidden" value="${escapeHtmlServer(token)}" />
             <label>
               New password
-              <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+              <input name="password" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
             </label>
             <label>
               Confirm new password
-              <input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required />
+              <input name="confirmPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
             </label>
             <button type="submit">Update Password</button>
           </form>

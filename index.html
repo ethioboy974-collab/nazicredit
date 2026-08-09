@@ -326,11 +326,11 @@
           <div class="two-column">
             <label>
               New password
-              <input id="newPassword" type="password" autocomplete="new-password" minlength="8" required />
+              <input id="newPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
             </label>
             <label>
               Confirm new password
-              <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required />
+              <input id="confirmNewPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
             </label>
           </div>
           <button class="primary-button" type="submit">Update Password</button>
@@ -378,7 +378,7 @@
             <div class="two-column">
               <label>
                 Temporary password
-                <input id="staffPassword" type="password" autocomplete="new-password" minlength="8" />
+                  <input id="staffPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" />
               </label>
             </div>
             <div class="dialog-actions">
@@ -465,7 +465,7 @@
         </label>
         <label>
           Temporary password
-          <input id="enterpriseTemporaryPassword" type="password" autocomplete="new-password" minlength="8" required />
+            <input id="enterpriseTemporaryPassword" type="password" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required />
         </label>
         <p class="helper-text">The owner must change this password after signing in.</p>
         <div class="dialog-actions">
