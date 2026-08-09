@@ -3009,7 +3009,7 @@ async function createEnterpriseUser(session, body) {
         displayName,
         role,
         await hashPassword(password),
-        email,
+        email || null,
       ],
     );
   } catch (error) {
