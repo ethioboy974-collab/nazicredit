@@ -28,7 +28,7 @@ test("passes a provider-neutral ready notification to the selected adapter", asy
   assert.deepEqual(deliveries[0], {
     channel: "sms",
     recipient: "+15550102020",
-    message: "Hello Marta, your order from NaziCredit is ready for pickup. Thank you for shopping with us.",
+    message: "NaziCredit: Hello Marta, your order is ready for pickup. Reply STOP to opt out or HELP for assistance. Message and data rates may apply.",
     orderId: "order-1",
   });
   assert.equal(result.provider, "test-provider");
