@@ -238,6 +238,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 .full-details-cell { min-width: 280px; line-height: 1.45; }
 .standalone-order-form { margin: 0 auto; max-width: 760px; }
 .standalone-order-form textarea { min-height: 150px; }
+.sms-consent-panel { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 10px; padding: 14px; }
+.sms-consent-choice { align-items: flex-start; color: var(--ink); display: flex; gap: 10px; }
+.sms-consent-choice input { flex: 0 0 auto; min-height: 20px; width: 20px; }
+.sms-consent-choice span { display: grid; gap: 5px; }
+.sms-consent-choice small, .sms-consent-panel p { color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.sms-consent-panel p { margin: 10px 0 0 30px; }
+.sms-consent-panel a { color: var(--accent-dark); font-weight: 800; }
 .product-section { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .product-section-heading, .product-row-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
 .product-section-heading h3, .product-section-heading p { margin-bottom: 3px; }
