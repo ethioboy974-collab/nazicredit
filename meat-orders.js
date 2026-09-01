@@ -92,7 +92,7 @@ function printActiveOrders() {
 function orderRow(order, sequence) {
   const priority = getPickupPriority(order.pickupAt);
   const status = normalizeStatus(order.status);
-  const notificationAction = status === "ready" && (!order.notificationSentAt || currentPermissions.resendOrderNotifications);
+  const notificationAction = order.smsConsent && status === "ready" && (!order.notificationSentAt || currentPermissions.resendOrderNotifications);
   return `<tr class="priority-${priority.key}">
     <td class="sheet-sequence" data-label="Order">${sequence}</td>
     <td class="pickup-cell" data-label="Pickup">${escapeHtml(formatDateTime(order.pickupAt))}</td>
@@ -116,6 +116,7 @@ function workflowButtons(id, status) {
 }
 
 function notificationDisplay(order, status) {
+  if (!order.smsConsent) return `<span class="notification-pending">No SMS consent</span><small>Customer will not be texted</small>`;
   if (order.notificationSentAt) return `<span class="notification-sent">Customer Texted</span><small>${escapeHtml(formatDateTime(order.notificationSentAt))}</small>`;
   if (status === "ready") return `<span class="notification-failed">Text Not Sent</span><small>Use Retry Text</small>`;
   return `<span class="notification-pending">Texts automatically when ready</span>`;
@@ -130,7 +131,9 @@ async function handleOrderAction(event) {
   try {
     const result = await apiRequest(`/meat-orders/${encodeURIComponent(button.dataset.orderId)}/status`, { method: "PATCH", body: JSON.stringify({ status: button.dataset.status }) });
     const successMessage = button.dataset.status === "ready"
-      ? "Done. The customer was texted."
+      ? (result.order?.smsConsent
+        ? "Done. The customer was texted."
+        : "Done. Order is ready. No text was sent because SMS consent was not recorded.")
       : button.dataset.status === "picked_up"
         ? "Done. The order was moved to Order History."
         : "Order preparation started.";
