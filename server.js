@@ -401,6 +401,19 @@ async function handleRequest(request, response) {
       return;
     }
 
+    const publicLegalPages = {
+      "/privacy": "/privacy.html",
+      "/privacy.html": "/privacy.html",
+      "/sms-terms": "/sms-terms.html",
+      "/sms-terms.html": "/sms-terms.html",
+      "/legal.css": "/legal.css",
+    };
+    if (request.method === "GET" && publicLegalPages[requestUrl.pathname]) {
+      requestUrl.pathname = publicLegalPages[requestUrl.pathname];
+      await serveStaticFile(requestUrl, response);
+      return;
+    }
+
     if (request.method === "GET" && requestUrl.pathname === "/access-help") {
       sendAccessHelpPage(response);
       return;
@@ -1796,7 +1809,7 @@ async function handleApiRequest(request, response, requestUrl, session) {
     if (!order) throw httpError(404, "Order not found");
     let notification = null;
     let notificationError = null;
-    if (status === "ready" && !order.notificationSentAt) {
+    if (status === "ready" && order.smsConsent && !order.notificationSentAt) {
       try {
         notification = await sendReadyNotification(session.enterpriseId, orderId, false);
       } catch (error) {
@@ -2317,6 +2330,9 @@ async function ensureSchema() {
       enterprise_id VARCHAR(64) NOT NULL,
       customer_name VARCHAR(160) NOT NULL,
       customer_phone VARCHAR(60) NOT NULL,
+      sms_consent TINYINT(1) NOT NULL DEFAULT 0,
+      sms_consent_at DATETIME NULL,
+      sms_consent_method VARCHAR(40) NULL,
       meat_type VARCHAR(160) NOT NULL,
       quantity VARCHAR(80) NOT NULL,
       preparation_instructions VARCHAR(500) NULL,
@@ -2342,6 +2358,9 @@ async function ensureSchema() {
     "status",
     "VARCHAR(20) NOT NULL DEFAULT 'pending' AFTER employee_name",
   );
+  await addColumnIfMissing("customer_credit_meat_orders", "sms_consent", "TINYINT(1) NOT NULL DEFAULT 0 AFTER customer_phone");
+  await addColumnIfMissing("customer_credit_meat_orders", "sms_consent_at", "DATETIME NULL AFTER sms_consent");
+  await addColumnIfMissing("customer_credit_meat_orders", "sms_consent_method", "VARCHAR(40) NULL AFTER sms_consent_at");
   await addColumnIfMissing(
     "customer_credit_meat_orders",
     "completed_at",
@@ -3849,6 +3868,9 @@ async function listMeatOrders(enterpriseId) {
         id,
         customer_name AS customerName,
         customer_phone AS customerPhone,
+        sms_consent AS smsConsent,
+        DATE_FORMAT(sms_consent_at, '%Y-%m-%dT%H:%i:%s') AS smsConsentAt,
+        sms_consent_method AS smsConsentMethod,
         meat_type AS meatType,
         quantity,
         preparation_instructions AS preparationInstructions,
@@ -3888,6 +3910,9 @@ async function listMeatOrders(enterpriseId) {
     createdAt: toIsoLike(order.createdAt),
     completedAt: order.completedAt ? toIsoLike(order.completedAt) : null,
     completedBy: order.completedBy || "",
+    smsConsent: Boolean(order.smsConsent),
+    smsConsentAt: order.smsConsentAt ? toIsoLike(order.smsConsentAt) : null,
+    smsConsentMethod: order.smsConsentMethod || "",
     notificationSentAt: order.notificationSentAt ? toIsoLike(order.notificationSentAt) : null,
     isActive: Boolean(order.isActive),
     items: itemsByOrder.get(order.id) || [{ id: `legacy-${order.id}`, productName: order.meatType,
@@ -3902,15 +3927,18 @@ async function createMeatOrder(enterpriseId, order) {
     await connection.query(
     `
       INSERT INTO customer_credit_meat_orders
-        (id, enterprise_id, customer_name, customer_phone, meat_type, quantity,
-         preparation_instructions, pickup_at, employee_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, enterprise_id, customer_name, customer_phone, sms_consent, sms_consent_at,
+         sms_consent_method, meat_type, quantity, preparation_instructions, pickup_at, employee_name, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       order.id,
       enterpriseId,
       order.customerName,
       order.customerPhone,
+      order.smsConsent ? 1 : 0,
+      order.smsConsent ? toMysqlDateTime(order.smsConsentAt) : null,
+      order.smsConsent ? order.smsConsentMethod : null,
       order.items[0].productName,
       `${order.items[0].quantity} ${order.items[0].unit}`,
       order.preparationInstructions || null,
@@ -3941,8 +3969,11 @@ async function updateMeatOrder(enterpriseId, orderId, order) {
   try {
     await connection.beginTransaction();
     const [result] = await connection.query(`UPDATE customer_credit_meat_orders SET
-      customer_name=?, customer_phone=?, meat_type=?, quantity=?, preparation_instructions=?, pickup_at=?, employee_name=?
-      WHERE enterprise_id=? AND id=?`, [order.customerName, order.customerPhone, order.items[0].productName,
+      customer_name=?, customer_phone=?, sms_consent=?, sms_consent_at=?, sms_consent_method=?,
+      meat_type=?, quantity=?, preparation_instructions=?, pickup_at=?, employee_name=?
+      WHERE enterprise_id=? AND id=?`, [order.customerName, order.customerPhone, order.smsConsent ? 1 : 0,
+      order.smsConsent ? toMysqlDateTime(order.smsConsentAt) : null, order.smsConsent ? order.smsConsentMethod : null,
+      order.items[0].productName,
       `${order.items[0].quantity} ${order.items[0].unit}`, order.preparationInstructions || null,
       toMysqlDateTime(order.pickupAt), order.employeeName, enterpriseId, orderId]);
     if (!result.affectedRows) { await connection.rollback(); return null; }
@@ -3973,6 +4004,7 @@ async function sendReadyNotification(enterpriseId, orderId, allowResend) {
   let order = (await listMeatOrders(enterpriseId)).find((item) => item.id === orderId);
   if (!order) throw httpError(404, "Order not found");
   if (order.status !== "ready") throw httpError(409, "Only ready orders can send a ready notification");
+  if (!order.smsConsent) throw httpError(409, "Customer SMS consent was not recorded for this order");
   if (order.notificationSentAt && !allowResend) return { order, delivery: null };
   if (!allowResend) {
     const [claim] = await pool.query(`UPDATE customer_credit_meat_orders SET notification_claimed_at=UTC_TIMESTAMP()
@@ -4924,10 +4956,18 @@ function normalizeMeatOrder(order) {
       quantity, unit: requiredString(item.unit, "Unit").slice(0, 40),
       specialInstructions: String(item.specialInstructions || "").trim().slice(0, 500), price };
   });
+  const smsConsent = order.smsConsent === true || order.smsConsent === "true" || order.smsConsent === 1;
+  const suppliedConsentAt = new Date(order.smsConsentAt || "");
+  const smsConsentAt = smsConsent
+    ? (Number.isNaN(suppliedConsentAt.getTime()) ? new Date().toISOString() : suppliedConsentAt.toISOString())
+    : null;
   return {
     id: requiredString(order.id || cryptoRandomId(), "Order id").slice(0, 64),
     customerName: requiredString(order.customerName, "Customer name").slice(0, 160),
     customerPhone: requiredString(order.customerPhone, "Phone number").slice(0, 60),
+    smsConsent,
+    smsConsentAt,
+    smsConsentMethod: smsConsent ? "verbal" : "",
     meatType: items[0].productName,
     quantity: `${items[0].quantity} ${items[0].unit}`,
     items,
