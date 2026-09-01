@@ -13,7 +13,7 @@ function createOrderNotificationService(options = {}) {
   return {
     providerName,
     async sendOrderReady(order) {
-      const message = `Hello ${order.customerName}, your order from NaziCredit is ready for pickup. Thank you for shopping with us.`;
+      const message = `NaziCredit: Hello ${order.customerName}, your order is ready for pickup. Reply STOP to opt out or HELP for assistance. Message and data rates may apply.`;
       const result = await provider.send({
         channel: "sms",
         recipient: normalizeSmsRecipient(order.customerPhone),
