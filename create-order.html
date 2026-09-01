@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Create Order | NaziCredit</title>
-    <link rel="stylesheet" href="meat-orders.css?v=20260731-products-one-box" />
+    <link rel="stylesheet" href="meat-orders.css?v=20260901-sms-consent" />
   </head>
   <body>
     <main class="app-shell">
@@ -28,6 +28,13 @@
           <label>Pickup date *<input name="pickupDate" type="date" required /></label>
           <label>Pickup time *<input name="pickupTime" type="time" required /></label>
           <label class="wide">Employee who took the order *<input name="employeeName" maxlength="160" autocomplete="name" required /></label>
+          <section class="wide sms-consent-panel" aria-labelledby="smsConsentHeading">
+            <label class="sms-consent-choice">
+              <input name="smsConsent" type="checkbox" />
+              <span><strong id="smsConsentHeading">Customer agreed to an order-ready text</strong><small>I asked the customer and received verbal permission to send one transactional SMS when this order is ready. Consent is optional and is not required to place an order.</small></span>
+            </label>
+            <p>Message frequency varies by order. Message and data rates may apply. Reply STOP to opt out or HELP for assistance. <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> · <a href="/sms-terms" target="_blank" rel="noopener">SMS Terms</a></p>
+          </section>
         </div>
         <datalist id="meatTypes"><option value="Beef"></option><option value="Lamb"></option><option value="Goat"></option><option value="Chicken"></option></datalist>
         <div class="form-actions">
@@ -37,7 +44,7 @@
         <p class="form-message" id="formMessage" role="status"></p>
       </form>
     </main>
-    <script src="create-order.js?v=20260731-inline-product-add"></script>
+    <script src="create-order.js?v=20260901-sms-consent"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>
