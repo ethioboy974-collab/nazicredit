@@ -5,6 +5,7 @@ const formMessage = document.querySelector("#formMessage");
 const params = new URLSearchParams(location.search);
 const editId = params.get("edit");
 const demoMode = false;
+let existingSmsConsentAt = null;
 
 setPickupDefaults();
 addProductRow();
@@ -67,6 +68,8 @@ async function loadOrderForEdit() {
     form.elements.customerPhone.value = order.customerPhone;
     form.elements.preparationInstructions.value = order.preparationInstructions || "";
     form.elements.employeeName.value = order.employeeName;
+    form.elements.smsConsent.checked = Boolean(order.smsConsent);
+    existingSmsConsentAt = order.smsConsentAt || null;
     const pickup = new Date(order.pickupAt);
     form.elements.pickupDate.value = localDate(pickup);
     form.elements.pickupTime.value = `${String(pickup.getHours()).padStart(2, "0")}:${String(pickup.getMinutes()).padStart(2, "0")}`;
@@ -98,7 +101,7 @@ async function saveOrder(event) {
   event.preventDefault(); if (!form.reportValidity()) return;
   const values = new FormData(form); const pickupAt = new Date(`${values.get("pickupDate")}T${values.get("pickupTime")}`);
   if (Number.isNaN(pickupAt.getTime())) return showMessage("Choose a valid pickup date and time.", true);
-  const input = { customerName: values.get("customerName"), customerPhone: values.get("customerPhone"), items: collectItems(), preparationInstructions: values.get("preparationInstructions"), pickupAt: pickupAt.toISOString(), employeeName: values.get("employeeName") };
+  const input = { customerName: values.get("customerName"), customerPhone: values.get("customerPhone"), smsConsent: values.get("smsConsent") === "on", smsConsentAt: existingSmsConsentAt, items: collectItems(), preparationInstructions: values.get("preparationInstructions"), pickupAt: pickupAt.toISOString(), employeeName: values.get("employeeName") };
   saveButton.disabled = true; showMessage("Saving…");
   try {
     await api(editId ? `/api/meat-orders/${encodeURIComponent(editId)}` : "/api/meat-orders", { method: editId ? "PUT" : "POST", body: JSON.stringify(input) });
