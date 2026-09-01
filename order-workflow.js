@@ -13,7 +13,13 @@ function isOrderStatus(status) {
 }
 
 function canTransitionOrderStatus(fromStatus, toStatus) {
-  return Boolean(ALLOWED_TRANSITIONS[fromStatus]?.includes(toStatus));
+  return Boolean(ALLOWED_TRANSITIONS[normalizeOrderStatus(fromStatus)]?.includes(normalizeOrderStatus(toStatus)));
+}
+
+function normalizeOrderStatus(status) {
+  if (status === "active") return "pending";
+  if (status === "completed") return "picked_up";
+  return status;
 }
 
 function canResendOrderNotification(role) {
@@ -25,4 +31,5 @@ module.exports = {
   canResendOrderNotification,
   canTransitionOrderStatus,
   isOrderStatus,
+  normalizeOrderStatus,
 };
