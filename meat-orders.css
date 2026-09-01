@@ -232,6 +232,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 .compact-button { margin-top: 0; min-height: 42px; width: auto; }
 .completed-panel { margin: 0 auto; max-width: 1280px; }
 .full-orders-panel { margin: 0 auto; max-width: 1600px; }
+.print-sheet-heading { display: none; }
 .full-order-table { max-height: calc(100vh - 230px); }
 .full-order-table .order-sheet { min-width: 1180px; }
 .full-details-cell { min-width: 280px; line-height: 1.45; }
@@ -344,4 +345,113 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .product-section-heading { align-items: stretch; flex-direction: column; }
   .product-fields { grid-template-columns: 1fr 1fr; }
   .product-fields label:first-child, .product-fields .wide { grid-column: 1 / -1; }
+}
+
+@page {
+  size: A4 landscape;
+  margin: 7mm;
+}
+
+@media print {
+  :root { color-scheme: light; }
+  * {
+    box-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  html, body {
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8pt;
+  }
+  .app-shell { min-height: 0; padding: 0; }
+  .topbar,
+  .panel-heading,
+  .form-message,
+  .empty-state { display: none !important; }
+  .full-orders-panel {
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    max-width: none;
+    padding: 0;
+  }
+  .print-sheet-heading {
+    align-items: flex-end;
+    border-bottom: 2px solid #000;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3mm;
+    padding-bottom: 2mm;
+  }
+  .print-sheet-heading h2 { font-size: 15pt; margin: 0; }
+  .print-sheet-label {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .08em;
+    margin: 0 0 1mm;
+    text-transform: uppercase;
+  }
+  .print-sheet-summary { display: grid; gap: 1mm; text-align: right; }
+  .order-table-wrap,
+  .full-order-table {
+    border: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .order-sheet,
+  .full-order-table .order-sheet {
+    border-collapse: collapse;
+    font-size: 7.5pt;
+    min-width: 0;
+    table-layout: fixed;
+    width: 100%;
+  }
+  .order-sheet thead { display: table-header-group; }
+  .order-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+  .order-sheet th,
+  .order-sheet td {
+    background: #fff !important;
+    border: 1px solid #555;
+    color: #000 !important;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    padding: 1.2mm 1.4mm;
+    position: static;
+    vertical-align: top;
+  }
+  .order-sheet thead th {
+    background: #d9e2f3 !important;
+    font-size: 7pt;
+    font-weight: 700;
+    position: static;
+    text-transform: uppercase;
+    white-space: normal;
+  }
+  .order-sheet th:nth-child(1), .order-sheet td:nth-child(1) { width: 4%; text-align: center !important; }
+  .order-sheet th:nth-child(2), .order-sheet td:nth-child(2) { width: 13%; }
+  .order-sheet th:nth-child(3), .order-sheet td:nth-child(3) { width: 12%; }
+  .order-sheet th:nth-child(4), .order-sheet td:nth-child(4) { width: 13%; }
+  .order-sheet th:nth-child(5), .order-sheet td:nth-child(5) { width: 12%; }
+  .order-sheet th:nth-child(6), .order-sheet td:nth-child(6) { width: 20%; }
+  .order-sheet th:nth-child(7), .order-sheet td:nth-child(7) { width: 17%; }
+  .order-sheet th:nth-child(8), .order-sheet td:nth-child(8) { width: 9%; }
+  .order-sheet th:nth-child(9), .order-sheet td:nth-child(9),
+  .order-sheet th:nth-child(10), .order-sheet td:nth-child(10) { display: none; }
+  .sheet-sequence { min-width: 0; width: auto; }
+  .pickup-cell, .priority-time { white-space: normal; }
+  .status-cell, .products-cell, .preparation-cell, .full-details-cell { min-width: 0; }
+  .order-status {
+    background: transparent !important;
+    border-radius: 0;
+    display: block;
+    font-size: 7pt;
+    padding: 0;
+  }
+  .priority-time { font-size: 6.5pt; margin-top: .5mm; }
+  .product-display { gap: 0; padding: 0 0 1mm; }
+  .product-display + .product-display { border-top: 1px dotted #888; padding-top: 1mm; }
+  .product-display small { color: #000; line-height: 1.1; }
+  .order-sheet a { color: #000; font-weight: 400; text-decoration: none; }
 }

@@ -3,6 +3,8 @@ const activeEmpty = document.querySelector("#activeEmpty");
 const activeCount = document.querySelector("#activeCount");
 const pageMessage = document.querySelector("#pageMessage");
 const clearDemoButton = document.querySelector("#clearDemoButton");
+const printOrderCount = document.querySelector("#printOrderCount");
+const printTimestamp = document.querySelector("#printTimestamp");
 const demoMode = false;
 let demoOrders = [];
 let currentOrders = [];
@@ -15,6 +17,7 @@ function init() {
   loadCurrentUser();
   clearDemoButton.hidden = true;
   document.querySelector("#refreshButton").addEventListener("click", loadOrders);
+  document.querySelector("#printButton").addEventListener("click", printActiveOrders);
   activeOrders.addEventListener("click", handleOrderAction);
   loadOrders();
   setInterval(() => renderOrders(currentOrders), 60_000);
@@ -75,7 +78,15 @@ function renderOrders(orders) {
   const active = orders.filter((order) => order.status !== "picked_up" && order.isActive !== false).sort(compareOrderPriority);
   activeOrders.innerHTML = active.map((order, index) => orderRow(order, index + 1)).join("");
   activeCount.textContent = active.length;
+  printOrderCount.textContent = active.length;
   activeEmpty.hidden = active.length > 0;
+}
+
+function printActiveOrders() {
+  const activeTotal = Number(activeCount.textContent || 0);
+  if (!activeTotal) return showMessage("There are no active orders to print.", true);
+  printTimestamp.textContent = `Printed ${formatDateTime(new Date())}`;
+  window.print();
 }
 
 function orderRow(order, sequence) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Active Orders | NaziCredit</title>
-    <link rel="stylesheet" href="meat-orders.css?v=20260802-order-notifications" />
+    <link rel="stylesheet" href="meat-orders.css?v=20260901-a4-order-print" />
   </head>
   <body>
     <main class="app-shell">
@@ -18,12 +18,23 @@
           <a class="primary-link-button" href="create-order.html">+ Create Order</a>
           <a class="toolbar-button" href="completed-orders.html">Order History</a>
           <a class="toolbar-button" href="index.html">Credit</a>
+          <button class="toolbar-button" id="printButton" type="button">Print Active Orders</button>
           <button class="toolbar-button" id="refreshButton" type="button">Refresh</button>
           <button class="toolbar-button clear-demo-button" id="clearDemoButton" type="button" hidden>Clear Demo Orders</button>
         </nav>
       </header>
 
       <section class="panel full-orders-panel">
+        <div class="print-sheet-heading" aria-hidden="true">
+          <div>
+            <p class="print-sheet-label">NaziCredit</p>
+            <h2>Active Orders</h2>
+          </div>
+          <div class="print-sheet-summary">
+            <span>Total orders: <strong id="printOrderCount">0</strong></span>
+            <span id="printTimestamp"></span>
+          </div>
+        </div>
         <div class="panel-heading">
           <div><p class="step">Prepare next</p><h2>Active orders <span class="count" id="activeCount">0</span></h2></div>
           <p class="helper">For each order, press the one action under Next Step. The customer is texted automatically when you mark the order ready.</p>
@@ -45,7 +56,7 @@
       </section>
     </main>
 
-    <script src="meat-orders.js?v=20260802-order-notifications"></script>
+    <script src="meat-orders.js?v=20260901-a4-order-print"></script>
     <script src="session-guard.js"></script>
   </body>
 </html>
