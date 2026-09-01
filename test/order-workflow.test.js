@@ -22,6 +22,8 @@ test("allows only the forward workflow and history restore", () => {
   assert.equal(canTransitionOrderStatus("preparing", "ready"), true);
   assert.equal(canTransitionOrderStatus("ready", "picked_up"), true);
   assert.equal(canTransitionOrderStatus("picked_up", "pending"), true);
+  assert.equal(canTransitionOrderStatus("active", "preparing"), true);
+  assert.equal(canTransitionOrderStatus("completed", "pending"), true);
   assert.equal(canTransitionOrderStatus("pending", "ready"), false);
   assert.equal(canTransitionOrderStatus("picked_up", "ready"), false);
 });
