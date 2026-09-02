@@ -40,6 +40,9 @@ test("employee screens hide financial summary dashboards", () => {
   assert.match(vendorClient, /dashboardTab\.hidden = accessState\.role !== "owner"/);
   assert.match(vendorClient, /accessState\.role === "owner"[\s\S]*?dashboardTab\.click\(\)/);
   assert.match(vendorClient, /Signed in as \$\{accessState\.username/);
+  assert.match(vendorClient, /const ownerActions = accessState\.role === "owner"/);
+  assert.match(vendorClient, /function isAdmin\(\) \{\s*return accessState\.role === "owner";/);
+  assert.doesNotMatch(vendorClient, /currentUser && currentUser\.role === "Admin"/);
   assert.match(fs.readFileSync(path.join(root, "styles.css"), "utf8"), /\[hidden\][\s\S]*?display: none !important/);
   assert.match(fs.readFileSync(path.join(root, "vendor-tracking.css"), "utf8"), /\[hidden\][\s\S]*?display: none !important/);
 });

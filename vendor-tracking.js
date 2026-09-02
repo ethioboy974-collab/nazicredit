@@ -1,10 +1,5 @@
-const USERS = {
-  admin: { password: "admin123", role: "Admin" },
-  staff: { password: "staff123", role: "Staff" }
-};
-
 const state = loadState();
-let currentUser = { username: "owner", role: "Admin" };
+let currentUser = { username: "session", role: "Signed in" };
 let vendorListOpen = false;
 const selectedStatementEntries = new Set();
 let clearPaidArmed = false;
@@ -804,18 +799,22 @@ function renderVendors() {
     ? "Hide Vendor List"
     : `Show Vendor List (${state.vendors.length})`;
   elements.vendorList.innerHTML = visibleVendors
-    .map((vendor) => `
+    .map((vendor) => {
+      const ownerActions = accessState.role === "owner"
+        ? `<div class="vendor-actions">
+            <button class="text-action" data-print-vendor="${vendor.id}" type="button">Print report</button>
+            <button class="text-action" data-reset-vendor-password="${vendor.id}" type="button">Reset portal password</button>
+            <button class="text-action" data-edit-vendor="${vendor.id}" type="button">Edit</button>
+            <button class="text-action danger-text" data-delete-vendor="${vendor.id}" type="button">Delete</button>
+          </div>`
+        : "";
+      return `
       <div class="vendor-item">
         <strong>${escapeHtml(vendor.name)}</strong>
         <span>${escapeHtml(vendorContactLine(vendor))}</span>
-        <div class="vendor-actions">
-          <button class="text-action" data-print-vendor="${vendor.id}" type="button">Print report</button>
-          <button class="text-action" data-reset-vendor-password="${vendor.id}" type="button">Reset portal password</button>
-          <button class="text-action" data-edit-vendor="${vendor.id}" type="button">Edit</button>
-          <button class="text-action danger-text" data-delete-vendor="${vendor.id}" type="button">Delete</button>
-        </div>
+        ${ownerActions}
       </div>
-    `)
+    `; })
     .join("") || (query
       ? `<div class="vendor-item"><strong>No matching vendor</strong><span>Try another name or phone number.</span></div>`
       : `<div class="vendor-item"><strong>No vendors yet</strong><span>Add the first vendor using the form.</span></div>`);
@@ -1692,7 +1691,7 @@ function actionLabel(type) {
 }
 
 function isAdmin() {
-  return currentUser && currentUser.role === "Admin";
+  return accessState.role === "owner";
 }
 
 function canCreateVendor() {
