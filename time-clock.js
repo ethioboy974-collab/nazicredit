@@ -37,7 +37,7 @@ function render(data) {
   document.querySelector("#clockStatus").textContent = activeShift ? "Clocked in" : "Clocked out";
   document.querySelector("#shiftStarted").textContent = activeShift ? `Started ${dateTime(activeShift.clockIn)}` : "You have no open shift.";
   window.deviceApproved = data.deviceApproved;
-  document.querySelector("#adminLink").hidden = !data.canViewTeam;
+  if (data.canViewTeam) loadOwnerControls();
   renderButtons();
   document.querySelector("#ownRows").innerHTML = rows(data.ownEntries, false);
   const totals = new Map();
@@ -50,10 +50,22 @@ function render(data) {
     || "No completed hours in an open pay period.";
 }
 
+function loadOwnerControls() {
+  const section = document.querySelector("#adminSection");
+  section.hidden = false;
+  if (location.hash === "#admin") requestAnimationFrame(() => section.scrollIntoView({ behavior: "smooth" }));
+  if (window.timeClockAdminLoaded) return;
+  window.timeClockAdminLoaded = true;
+  const script = document.createElement("script");
+  script.src = "/time-clock-admin.js?v=20260901";
+  script.onerror = () => showMessage("Employee management could not be loaded. Refresh and try again.", true);
+  document.body.appendChild(script);
+}
+
 function renderButtons() {
   clockInButton.disabled = !window.deviceApproved || Boolean(activeShift);
   clockOutButton.disabled = !window.deviceApproved || !activeShift;
-  if (!window.deviceApproved) showMessage("This device is not a registered store tablet. Ask the owner to register it in Time Clock Admin.", true);
+  if (!window.deviceApproved) showMessage("This device is not a registered store tablet. Ask the owner to register it under Store tablets below.", true);
 }
 
 function rows(entries, showEmployee) {

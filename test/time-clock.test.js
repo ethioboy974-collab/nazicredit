@@ -28,9 +28,20 @@ test("clock actions require a registered store tablet", () => {
 
 test("owner admin retains paid payroll and audits adjustments", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
-  const html = fs.readFileSync(path.join(__dirname, "..", "time-clock-admin.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "time-clock.html"), "utf8");
   assert.match(source, /SET paid_at=\?,paid_by=\?/);
   assert.match(source, /time_clock\.entry_adjusted/);
   assert.match(html, /Payroll history/);
-  assert.match(html, /Employee management/);
+  assert.match(html, /Employee management &amp; payroll/);
+});
+
+test("employee and time clock controls share one page", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "time-clock.html"), "utf8");
+  const oldEmployeePage = fs.readFileSync(path.join(__dirname, "..", "employee-management.html"), "utf8");
+  const oldAdminPage = fs.readFileSync(path.join(__dirname, "..", "time-clock-admin.html"), "utf8");
+  assert.match(html, /Employees &amp; Time Clock/);
+  assert.match(html, /id="employeeForm"/);
+  assert.match(html, /id="adminSection"/);
+  assert.match(oldEmployeePage, /location\.replace\('\/time-clock\.html#admin'\)/);
+  assert.match(oldAdminPage, /location\.replace\('\/time-clock\.html#admin'\)/);
 });
