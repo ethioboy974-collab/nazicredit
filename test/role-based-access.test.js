@@ -74,9 +74,11 @@ test("employees can collect a customer payment without full ledger access", () =
 
 test("owner employee management supports roles, passwords, and activation status", () => {
   const management = fs.readFileSync(path.join(root, "employee-management.html"), "utf8");
-  assert.match(html, /id="employeeManagementLink"/);
+  const timeClock = fs.readFileSync(path.join(root, "time-clock.html"), "utf8");
+  assert.match(html, /Employees &amp; Time Clock/);
   assert.match(fs.readFileSync(path.join(root, "vendor-tracking.html"), "utf8"), /id="employeeManagementLink"/);
-  assert.match(management, /Employee Management/);
+  assert.match(management, /time-clock\.html#admin/);
+  assert.match(timeClock, /id="employeeForm"/);
   assert.match(server, /"\/employee-management\.html"/);
   assert.match(html, /<option value="owner">Owner<\/option>/);
   assert.match(html, /id="staffStatus"/);
