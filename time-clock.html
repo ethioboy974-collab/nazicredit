@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Employee Time Clock</title>
-  <link rel="stylesheet" href="time-clock.css?v=20260806" />
+  <title>Employees &amp; Time Clock</title>
+  <link rel="stylesheet" href="time-clock.css?v=20260901" />
+  <link rel="stylesheet" href="time-clock-admin.css?v=20260901" />
 </head>
 <body>
   <header>
-    <div><p class="eyebrow">Employee Time Clock</p><h1 id="employeeName">Time Clock</h1><p id="currentTime"></p></div>
-    <nav><a id="adminLink" href="/time-clock-admin.html" hidden>Time clock admin</a> <a href="/index.html">Back to store</a></nav>
+    <div><p class="eyebrow">Staff</p><h1 id="employeeName">Employees &amp; Time Clock</h1><p id="currentTime"></p></div>
+    <nav><a href="/index.html">Back to store</a></nav>
   </header>
   <main>
     <section class="clock-card">
@@ -22,7 +23,17 @@
       <div class="time-card-totals" id="timeCardTotals"></div>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th></tr></thead><tbody id="ownRows"></tbody></table></div>
     </section>
+    <div id="adminSection" class="admin-section" hidden>
+      <div class="section-intro"><p class="eyebrow">Owner controls</p><h2>Employee management &amp; payroll</h2><p>Add employees here, manage store tablets, correct time entries, and review payroll.</p></div>
+      <section class="panel"><div class="heading"><h2>Employees</h2><p>This is the only place to add or edit an employee.</p></div><form id="employeeForm" class="form-grid"><input name="id" type="hidden"><label>Employee ID<input name="employeeNumber" required></label><label>Name<input name="name" required></label><label>Phone<input name="phone" type="tel" required></label><label>Username<input name="username" autocomplete="off"></label><label>Temporary password<input name="password" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6"></label><label>Status<select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button type="submit">Save employee</button><button id="cancelEmployee" type="button" class="secondary">Cancel edit</button></form><div id="employeeList" class="cards"></div></section>
+      <section class="panel"><div class="heading"><h2>Store tablets</h2><p>Clock actions are available only on active tablets registered here.</p></div><form id="deviceForm" class="inline-form"><input name="name" placeholder="Tablet name, e.g. Front counter" required><button type="submit">Register this tablet</button></form><div id="deviceList" class="cards"></div></section>
+      <section class="panel"><div class="heading"><h2>Adjust time</h2><p>Add a missed punch or correct an employee's hours.</p></div><form id="entryForm" class="form-grid"><input name="id" type="hidden"><label>Employee<select name="employeeId" required></select></label><label>Clock in<input name="clockIn" type="datetime-local" required></label><label>Clock out<input name="clockOut" type="datetime-local"></label><label class="wide">Reason<input name="reason" required placeholder="Required for the audit log"></label><button type="submit">Save time entry</button><button id="cancelEntry" type="button" class="secondary">Cancel edit</button></form></section>
+      <section class="panel"><div class="heading"><h2>Running time cards</h2><p id="periodLabel"></p></div><button id="markPaid" class="payroll-button" type="button">Mark selected paid</button><div class="table-wrap"><table><thead><tr><th></th><th>Employee</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Pay period</th><th></th></tr></thead><tbody id="currentRows"></tbody></table></div><div id="totals" class="totals"></div></section>
+      <section class="panel"><div class="heading"><h2>Payroll history</h2><p>Paid time records are retained permanently.</p></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Paid</th></tr></thead><tbody id="historyRows"></tbody></table></div></section>
+      <section class="panel"><div class="heading"><h2>Audit log</h2><p>Employee, tablet, time-entry, and payroll changes.</p></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Owner/User</th><th>Action</th><th>Details</th></tr></thead><tbody id="auditRows"></tbody></table></div></section>
+      <p id="message" hidden></p>
+    </div>
   </main>
-  <script src="time-clock.js?v=20260806"></script>
+  <script src="time-clock.js?v=20260901"></script>
 </body>
 </html>
